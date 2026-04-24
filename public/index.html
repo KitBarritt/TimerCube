@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/x-icon" href="favicon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Toast Timer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
+nav{display:flex;gap:1.5rem;padding:.75rem 1rem;border-bottom:1px solid #1f2937;align-items:center}
+nav a{color:#9ca3af;text-decoration:none;font-size:.875rem}
+nav a.active,nav a:hover{color:#e5e7eb}
+.container{max-width:600px;margin:0 auto;padding:1.5rem 1rem}
+.display{font-family:'Roboto',Arial,monospace;font-size:5.5rem;font-weight:bold;text-align:center;
+  letter-spacing:.05em;margin:.5rem 0;transition:color .3s}
+.display.off{color:#4b5563}
+.display.running{color:#e5e7eb}
+.display.green{color:#1db954}
+.display.amber{color:#ff8c1a}
+.display.red{color:#ff3b30}
+.display.flash{color:#ff3b30}
+.display.flash.dim{color:#3f0e0b}
+.thresholds{text-align:center;color:#6b7280;font-size:.85rem;margin-bottom:1.25rem;min-height:1.2em}
+.btn-row{display:flex;gap:.625rem;margin-bottom:1.25rem}
+.btn{flex:1;padding:.75rem .5rem;border:none;border-radius:.5rem;font-size:1rem;cursor:pointer;
+  font-weight:500;transition:filter .15s}
+.btn:active{filter:brightness(.75)}
+.btn-start{background:#1db954;color:#fff}.btn-stop{background:#374151;color:#e5e7eb}
+.btn-reset{background:#7f1d1d;color:#fca5a5}
+.sec-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;margin-bottom:.4rem}
+.presets{display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem;margin-bottom:1.25rem}
+.preset{padding:.45rem .5rem;background:#1f2937;border:1px solid #374151;border-radius:.375rem;
+  color:#9ca3af;font-size:.8rem;cursor:pointer;text-align:center;transition:all .15s}
+.preset.active,.preset:hover{background:#1e3a2f;border-color:#1db954;color:#1db954}
+select{width:100%;padding:.5rem;background:#1f2937;border:1px solid #374151;color:#e5e7eb;
+  border-radius:.375rem;font-size:.9rem;margin-bottom:1.25rem}
+.lights{display:flex;gap:.4rem;margin-bottom:1.25rem}
+.light{flex:1;padding:.45rem 0;border:1px solid #374151;border-radius:.375rem;font-size:.75rem;
+  cursor:pointer;background:#1f2937;color:#9ca3af;transition:all .15s}
+.light:active{filter:brightness(.75)}
+.l-off:hover{border-color:#9ca3af;color:#e5e7eb}
+.l-green{border-color:#1db954;color:#1db954}.l-amber{border-color:#ff8c1a;color:#ff8c1a}
+.l-red{border-color:#ff3b30;color:#ff3b30}.l-flash{border-color:#ff3b30;color:#ff3b30}
+.statusbar{display:flex;justify-content:flex-end;align-items:center;gap:.75rem;
+  font-size:.7rem;padding:.5rem 0}
+</style>
+</head>
+<body>
+<nav>
+  <strong style="color:#e5e7eb">TimerCube</strong>
+  <a href="/" class="active">Timer</a>
+  <a href="/speakers.html">Speakers</a>
+  <a href="/report.html">Report</a>
+  <a href="/settings.html">Settings</a>
+</nav>
+<div class="container">
+  <div class="display off" id="disp">0:00</div>
+  <div class="thresholds" id="thresh"></div>
+
+  <div class="btn-row">
+    <button class="btn btn-start" id="btnStart" onclick="cmd('start')">Start</button>
+    <button class="btn btn-stop"  onclick="cmd('stop')">Stop</button>
+    <button class="btn btn-reset" onclick="cmd('reset')">Reset</button>
+  </div>
+
+  <div class="sec-label">Presets</div>
+  <div class="presets" id="presets"></div>
+
+  <div class="sec-label">Speaker</div>
+  <select id="spkSel" onchange="pickSpeaker(this.value)">
+    <option value="">— No speaker —</option>
+  </select>
+
+  <div class="sec-label">Manual light</div>
+  <div class="lights">
+    <button class="light l-off"   onclick="cmd('set_colour','off')">Off</button>
+    <button class="light l-green" onclick="cmd('set_colour','green')">Green</button>
+    <button class="light l-amber" onclick="cmd('set_colour','amber')">Amber</button>
+    <button class="light l-red"   onclick="cmd('set_colour','red')">Red</button>
+    <button class="light l-flash" onclick="cmd('set_colour','flash')">Flash</button>
+  </div>
+
+  <div class="statusbar">
+    <span style="flex:1"></span>
+    <span id="st" style="color:#6b7280">Connecting…</span>
+    <span style="flex:1;text-align:right;color:#fff">TimerCube by Kit</span>
+  </div>
+</div>
+
+<script>
+const PRESETS=[
+  {label:'1 Minute',      times:[0,0,60,600]},
+  {label:'Table Topics',  times:[60,90,120,150]},
+  {label:'Evaluations',   times:[120,150,180,210]},
+  {label:'Icebreaker',    times:[240,300,360,390]},
+  {label:'5–7 Minutes',   times:[300,360,420,450]},
+  {label:'10 Minutes',    times:[480,540,600,630]},
+  {label:'12 Minutes',    times:[600,660,720,750]},
+  {label:'15 Minutes',    times:[780,840,900,930]},
+  {label:'20 Minutes',    times:[960,1080,1200,1230]},
+  {label:'Manual',        times:[0,0,0,0]},
+];
+let ws,state={colour:'off',elapsed:0,running:false,thresholds:[0,0,0,0],speaker:'',flash_on:false};
+let speakers=[],activePre=-1;
+
+function fmt(s){s=Math.floor(s);return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function cmd(type,val){
+  if(type==='set_colour') send({type,colour:val});
+  else send({type});
+}
+
+function setStatus(text,colour){
+  const el=document.getElementById('st');
+  el.textContent=text;
+  el.style.color=colour;
+}
+
+function connect(){
+  ws=new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen=()=>setStatus('Connected','#1db954');
+  ws.onmessage=e=>{const m=JSON.parse(e.data);
+    if(m.type==='state'){state=m;render();}
+    else if(m.type==='speakers'){speakers=m.speakers;fillSpk();}
+  };
+  ws.onclose=()=>{setStatus('Reconnecting…','#ff8c1a');setTimeout(connect,2000);};
+  ws.onerror=()=>ws.close();
+}
+
+function render(){
+  const d=document.getElementById('disp');
+  d.textContent=fmt(state.elapsed);
+  let cls=state.colour||'off';
+  if(cls==='flash') cls='flash'+(state.flash_on?'':' dim');
+  else if(cls==='off'&&state.running) cls='running';
+  d.className='display '+cls;
+  const t=state.thresholds;
+  const thEl=document.getElementById('thresh');
+  if(t.every(v=>!v)){thEl.textContent='Manual mode';}
+  else{
+    const cols=['#1db954','#ff8c1a','#ff3b30'];
+    const sep='<span style="color:#4b5563"> · </span>';
+    thEl.innerHTML=t.slice(0,3).map((v,i)=>
+      v>0?`<span style="color:${cols[i]}">${fmt(v)}</span>`:null
+    ).filter(Boolean).join(sep);
+  }
+  document.getElementById('btnStart').textContent=state.running?'Running…':'Start';
+  document.getElementById('btnStart').disabled=state.running;
+}
+
+function fillSpk(){
+  const sel=document.getElementById('spkSel'),cur=sel.value;
+  sel.innerHTML='<option value="">— No speaker —</option>';
+  speakers.filter(s=>s.name&&s.name.trim()).forEach(s=>{
+    const o=document.createElement('option');
+    o.value=s.name;o.textContent=s.name;sel.appendChild(o);
+  });
+  sel.value=cur;
+}
+
+function pickSpeaker(name){
+  send({type:'set_speaker',speaker:name});
+  const spk=speakers.find(s=>s.name===name);
+  if(spk&&spk.preset){
+    send({type:'set_thresholds',thresholds:spk.preset});
+    const idx=PRESETS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(spk.preset));
+    highlightPre(idx);
+  }
+}
+
+function highlightPre(idx){
+  activePre=idx;
+  document.querySelectorAll('.preset').forEach((b,i)=>b.classList.toggle('active',i===idx));
+}
+
+const grid=document.getElementById('presets');
+PRESETS.forEach((p,i)=>{
+  const b=document.createElement('button');
+  b.className='preset';b.textContent=p.label;
+  b.onclick=()=>{send({type:'set_thresholds',thresholds:p.times});highlightPre(i);};
+  grid.appendChild(b);
+});
+
+document.addEventListener('keydown',e=>{
+  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
+  const k=e.key.toLowerCase();
+  if(k===' '){e.preventDefault();cmd('start');}
+  else if(k==='s')cmd('stop');
+  else if(k==='r')cmd('reset');
+  else if(k==='g')cmd('set_colour','green');
+  else if(k==='a')cmd('set_colour','amber');
+  else if(k==='x')cmd('set_colour','red');
+  else if(k==='f')cmd('set_colour','flash');
+  else if(k==='c')cmd('set_colour','off');
+});
+
+connect();
+</script>
+</body>
+</html>

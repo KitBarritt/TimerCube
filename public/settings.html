@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings – Toast Timer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
+nav{display:flex;gap:1.5rem;padding:.75rem 1rem;border-bottom:1px solid #1f2937;align-items:center}
+nav a{color:#9ca3af;text-decoration:none;font-size:.875rem}
+nav a.active,nav a:hover{color:#e5e7eb}
+.container{max-width:600px;margin:0 auto;padding:1.5rem 1rem}
+h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
+.card{background:#1f2937;border:1px solid #374151;border-radius:.625rem;padding:1rem;margin-bottom:1.25rem}
+label{font-size:.8rem;color:#9ca3af;display:block;margin-bottom:.3rem}
+input[type=text],input[type=password]{width:100%;padding:.45rem .6rem;background:#111827;
+  border:1px solid #374151;color:#e5e7eb;border-radius:.375rem;font-size:.9rem}
+input[type=range]{width:100%;accent-color:#1db954}
+.row{display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem}
+.row label{margin:0;flex:1}
+.net-row{display:flex;align-items:center;gap:.5rem;padding:.5rem;background:#111827;
+  border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.4rem}
+.net-row .ssid{flex:1;font-size:.875rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.net-row .pri{font-size:.75rem;color:#6b7280;width:1.5rem;text-align:center}
+.edit-panel{display:none;background:#0f1115;border:1px solid #374151;border-radius:.375rem;
+  padding:.75rem;margin-bottom:.4rem}
+.edit-panel.open{display:block}
+.edit-panel input{margin-bottom:.4rem}
+.btn{padding:.45rem .875rem;border:none;border-radius:.375rem;font-size:.85rem;cursor:pointer;
+  font-weight:500;transition:filter .15s}
+.btn:active{filter:brightness(.75)}
+.btn-primary{background:#1db954;color:#fff}.btn-secondary{background:#374151;color:#e5e7eb}
+.btn-danger{background:#7f1d1d;color:#fca5a5}.btn-warn{background:#92400e;color:#fde68a}
+.btn-sm{padding:.3rem .6rem;font-size:.75rem}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;
+  border-bottom:1px solid #1f2937;font-size:.85rem}
+.info-row:last-child{border:none}
+.info-val{color:#9ca3af;font-family:monospace;font-size:.8rem}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1db954;
+  color:#fff;padding:.5rem 1.25rem;border-radius:2rem;font-size:.875rem;opacity:0;
+  transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.status{font-size:.75rem;color:#6b7280;text-align:center;padding:.5rem}
+</style>
+</head>
+<body>
+<nav>
+  <strong style="color:#e5e7eb">TimerCube</strong>
+  <a href="/">Timer</a>
+  <a href="/speakers.html">Speakers</a>
+  <a href="/report.html">Report</a>
+  <a href="/settings.html" class="active">Settings</a>
+</nav>
+<div class="container">
+
+  <!-- Brightness -->
+  <div class="card">
+    <h2>Display Brightness</h2>
+    <label>Brightness: <span id="brightVal">60</span>%</label>
+    <input type="range" id="brightSlider" min="0" max="100" value="60"
+      oninput="setBrightness(this.value)">
+  </div>
+
+  <!-- WiFi networks -->
+  <div class="card">
+    <h2>WiFi Networks
+      <button class="btn btn-secondary btn-sm" style="float:right"
+        onclick="addNet()">+ Add</button>
+    </h2>
+    <div id="netList"></div>
+    <div style="display:flex;gap:.5rem;margin-top:.75rem">
+      <button class="btn btn-primary" onclick="saveWifi()">Save &amp; Connect</button>
+    </div>
+    <div id="wifiResult" class="status"></div>
+  </div>
+
+  <!-- AP settings -->
+  <div class="card">
+    <h2>Hotspot (fallback AP)</h2>
+    <div class="row">
+      <label for="apSsid">SSID</label>
+      <input type="text" id="apSsid" style="flex:2" placeholder="ToastTimer">
+    </div>
+    <div class="row">
+      <label for="apPass">Password</label>
+      <input type="password" id="apPass" style="flex:2" placeholder="toastmaster">
+    </div>
+    <small style="color:#6b7280;font-size:.75rem">Leave password blank for open network.</small>
+  </div>
+
+  <!-- Connection info -->
+  <div class="card">
+    <h2>Connection Info</h2>
+    <div class="info-row"><span>Mode</span><span class="info-val" id="infoMode">—</span></div>
+    <div class="info-row"><span>IP address</span><span class="info-val" id="infoIp">—</span></div>
+    <div class="info-row"><span>URL</span><span class="info-val" id="infoUrl">—</span></div>
+    <div class="info-row"><span>AP SSID</span><span class="info-val" id="infoAp">—</span></div>
+  </div>
+
+  <!-- Reboot -->
+  <div style="display:flex;gap:.75rem;margin-bottom:1.25rem">
+    <button class="btn btn-warn" onclick="doReboot()">Reboot Device</button>
+  </div>
+
+  <div class="status" id="st">Connecting…</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let ws, cfg={wifi:{networks:[],ap_ssid:'ToastTimer',ap_password:'toastmaster'},timer:{brightness:.6}};
+
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function showToast(msg,ok=true){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.background=ok?'#1db954':'#dc2626';
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+function connect(){
+  ws=new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen=()=>{
+    document.getElementById('st').textContent='Connected';
+    send({type:'get_config'});
+    fetch('/api/info').then(r=>r.json()).then(applyInfo).catch(()=>{});
+  };
+  ws.onmessage=e=>{const m=JSON.parse(e.data);
+    if(m.type==='config'){cfg=m.config;applyConfig();}
+    else if(m.type==='config_saved'){
+      const ok=m.ok!==false;
+      document.getElementById('wifiResult').textContent=ok?'Saved. Reconnecting WiFi…':'Save failed: '+(m.error||'');
+      if(ok)showToast('Settings saved');else showToast('Save failed','err');
+    }
+    else if(m.type==='rebooting'){showToast('Rebooting…');}
+  };
+  ws.onclose=()=>{document.getElementById('st').textContent='Reconnecting…';setTimeout(connect,2000);};
+  ws.onerror=()=>ws.close();
+}
+
+function applyInfo(info){
+  document.getElementById('infoMode').textContent=info.mode||'—';
+  document.getElementById('infoIp').textContent=info.ip||'—';
+  document.getElementById('infoUrl').textContent=info.url||'—';
+  document.getElementById('infoAp').textContent=info.ap_ssid||'—';
+}
+
+function applyConfig(){
+  const b=Math.round((cfg.timer?.brightness??0.6)*100);
+  document.getElementById('brightSlider').value=b;
+  document.getElementById('brightVal').textContent=b;
+  document.getElementById('apSsid').value=cfg.wifi?.ap_ssid??'ToastTimer';
+  document.getElementById('apPass').value=cfg.wifi?.ap_password??'toastmaster';
+  renderNetList();
+}
+
+function setBrightness(val){
+  document.getElementById('brightVal').textContent=val;
+  cfg.timer = cfg.timer || {};
+  cfg.timer.brightness = +val/100;
+  send({type:'set_brightness',brightness:+val/100});
+}
+
+// ── Network list ──────────────────────────────────────────────────────────
+let editOpen=-1;
+
+function renderNetList(){
+  const nets=cfg.wifi.networks||[];
+  const div=document.getElementById('netList');
+  div.innerHTML='';
+  if(!nets.length){div.innerHTML='<p style="color:#6b7280;font-size:.85rem">No networks saved.</p>';return;}
+  nets.forEach((n,i)=>{
+    const row=document.createElement('div');row.className='net-row';
+    row.innerHTML=`
+      <span class="pri">${n.priority??i}</span>
+      <span class="ssid">${escHtml(n.ssid)}</span>
+      <button class="btn btn-secondary btn-sm" onclick="toggleEdit(${i})">Edit</button>
+      <button class="btn btn-secondary btn-sm" onclick="moveNet(${i},-1)" ${i===0?'disabled':''}>↑</button>
+      <button class="btn btn-secondary btn-sm" onclick="moveNet(${i},1)" ${i===nets.length-1?'disabled':''}>↓</button>
+      <button class="btn btn-danger btn-sm" onclick="delNet(${i})">✕</button>`;
+    div.appendChild(row);
+
+    const ep=document.createElement('div');ep.className='edit-panel'+(editOpen===i?' open':'');
+    ep.id='ep'+i;
+    ep.innerHTML=`
+      <label>SSID<input type="text" id="es${i}" value="${escHtml(n.ssid)}"></label>
+      <label>Password<input type="password" id="pw${i}" value="${escHtml(n.password||'')}"></label>
+      <label>Static IP <small style="color:#6b7280">(optional — leave blank for DHCP)</small>
+        <input type="text" id="si${i}" value="${escHtml(n.static_ip||'')}" placeholder="e.g. 192.168.1.100"></label>
+      <div style="display:flex;gap:.4rem;margin-top:.4rem">
+        <button class="btn btn-primary btn-sm" onclick="applyEdit(${i})">Apply</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeEdit()">Cancel</button>
+      </div>`;
+    div.appendChild(ep);
+  });
+}
+
+function toggleEdit(i){
+  editOpen=editOpen===i?-1:i;renderNetList();
+  if(editOpen===i){const el=document.getElementById('es'+i);if(el)el.focus();}
+}
+function closeEdit(){editOpen=-1;renderNetList();}
+function applyEdit(i){
+  cfg.wifi.networks[i].ssid=document.getElementById('es'+i).value.trim();
+  cfg.wifi.networks[i].password=document.getElementById('pw'+i).value;
+  const si=document.getElementById('si'+i).value.trim();
+  if(si) cfg.wifi.networks[i].static_ip=si;
+  else   delete cfg.wifi.networks[i].static_ip;
+  editOpen=-1;renderNetList();
+}
+function moveNet(i,dir){
+  const nets=cfg.wifi.networks,j=i+dir;
+  if(j<0||j>=nets.length)return;
+  [nets[i],nets[j]]=[nets[j],nets[i]];
+  nets.forEach((n,k)=>n.priority=k);
+  renderNetList();
+}
+function delNet(i){cfg.wifi.networks.splice(i,1);cfg.wifi.networks.forEach((n,k)=>n.priority=k);renderNetList();}
+function addNet(){
+  cfg.wifi.networks.push({ssid:'',password:'',priority:cfg.wifi.networks.length});
+  editOpen=cfg.wifi.networks.length-1;renderNetList();
+  const el=document.getElementById('es'+editOpen);if(el)el.focus();
+}
+
+function saveWifi(){
+  cfg.wifi.ap_ssid=document.getElementById('apSsid').value.trim()||'ToastTimer';
+  cfg.wifi.ap_password=document.getElementById('apPass').value;
+  send({type:'save_config',config:{wifi:cfg.wifi,timer:cfg.timer}});
+}
+
+function doReboot(){
+  if(confirm('Reboot the device?'))send({type:'reboot'});
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+connect();
+</script>
+</body>
+</html>
+

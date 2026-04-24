@@ -1,0 +1,23 @@
+{
+  "wifi": {
+      "networks": [
+          {"ssid": "TP-Link", 
+           "password": "redbanana", 
+           "priority": 0}, 
+          {"ssid": "GL-MT3000", 
+           "password": "redbanana", 
+           "priority": 1}, 
+          {"ssid": "JLGuest", 
+           "password": "annabidder", 
+           "priority": 2}
+          {"ssid": "Halo House Guest", 
+           "password": "thehaloway", 
+           "priority": 2}
+           ], 
+        "ap_password": "toastmaster", 
+        "ap_ssid": "ToastTimer"
+     }, 
+   "timer": {
+   "brightness": 0.19
+    }
+}

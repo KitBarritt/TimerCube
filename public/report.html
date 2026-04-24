@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Report – Toast Timer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
+nav{display:flex;gap:1.5rem;padding:.75rem 1rem;border-bottom:1px solid #1f2937;align-items:center}
+nav a{color:#9ca3af;text-decoration:none;font-size:.875rem}
+nav a.active,nav a:hover{color:#e5e7eb}
+.container{max-width:760px;margin:0 auto;padding:1.5rem 1rem}
+.toolbar{display:flex;gap:.5rem;margin-bottom:1rem;align-items:center}
+.btn{padding:.45rem .875rem;border:none;border-radius:.375rem;font-size:.85rem;cursor:pointer;
+  font-weight:500;background:#374151;color:#e5e7eb}
+.btn:active{filter:brightness(.75)}
+h2{font-size:1rem;font-weight:600;margin-right:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:#1f2937;color:#9ca3af;font-weight:500;padding:.5rem .6rem;text-align:left;
+  border-bottom:2px solid #374151}
+td{padding:.45rem .6rem;border-bottom:1px solid #1f2937;font-family:monospace}
+td.name{font-family:system-ui,sans-serif}
+tr:hover td{background:#111827}
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:1rem;font-size:.75rem;font-weight:600}
+.b-green{background:#14532d;color:#4ade80}
+.b-amber{background:#78350f;color:#fbbf24}
+.b-red{background:#450a0a;color:#fca5a5}
+.b-over{background:#3b0764;color:#e879f9}
+.b-under{background:#1e3a5f;color:#60a5fa}
+.b-none{background:#1f2937;color:#6b7280}
+.status{font-size:.75rem;color:#6b7280;padding:.5rem 0}
+@media print{
+  nav,.toolbar,.status{display:none}
+  body{background:#fff;color:#000}
+  th{background:#f3f4f6;color:#374151}
+  td{border-bottom:1px solid #e5e7eb}
+  .badge{border:1px solid currentColor}
+}
+</style>
+</head>
+<body>
+<nav>
+  <strong style="color:#e5e7eb">TimerCube</strong>
+  <a href="/">Timer</a>
+  <a href="/speakers.html">Speakers</a>
+  <a href="/report.html" class="active">Report</a>
+  <a href="/settings.html">Settings</a>
+</nav>
+<div class="container">
+  <div class="toolbar">
+    <h2>Speech Timing Report</h2>
+    <button class="btn" onclick="loadData()">↻ Refresh</button>
+    <button class="btn" onclick="window.print()">Print</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Speaker</th>
+        <th>Green</th>
+        <th>Amber</th>
+        <th>Red</th>
+        <th>Flash</th>
+        <th>Actual</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem">Loading…</td></tr>
+    </tbody>
+  </table>
+
+  <div class="status" id="st"></div>
+</div>
+
+<script>
+function fmt(s){if(s==null||s===''||s===undefined)return'—';s=Math.floor(+s);return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');}
+
+function badge(actual,t){
+  if(actual==null)return'<span class="badge b-none">Not timed</span>';
+  const s=+actual,g=t[0],a=t[1],r=t[2],f=t[3];
+  if(f&&s>=f)return'<span class="badge b-over">Over</span>';
+  if(r&&s>=r)return'<span class="badge b-red">Red</span>';
+  if(a&&s>=a)return'<span class="badge b-amber">Amber</span>';
+  if(g&&s>=g)return'<span class="badge b-green">Green</span>';
+  return'<span class="badge b-under">Under</span>';
+}
+
+function render(speakers){
+  const tb=document.getElementById('tbody');
+  if(!speakers.length){
+    tb.innerHTML='<tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem">No speakers recorded yet.</td></tr>';
+    return;
+  }
+  tb.innerHTML=speakers.map((s,i)=>{
+    const t=s.preset||[0,0,0,0];
+    return`<tr>
+      <td>${i+1}</td>
+      <td class="name">${escHtml(s.name||'')}</td>
+      <td>${fmt(t[0])}</td>
+      <td>${fmt(t[1])}</td>
+      <td>${fmt(t[2])}</td>
+      <td>${fmt(t[3])}</td>
+      <td>${fmt(s.actual)}</td>
+      <td>${badge(s.actual,t)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function loadData(){
+  document.getElementById('st').textContent='Loading…';
+  fetch('/api/speakers')
+    .then(r=>r.json())
+    .then(data=>{render(data);document.getElementById('st').textContent='';})
+    .catch(e=>{document.getElementById('st').textContent='Error loading data.';});
+}
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+loadData();
+</script>
+</body>
+</html>

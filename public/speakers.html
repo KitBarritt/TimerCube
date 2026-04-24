@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Speakers – Toast Timer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
+nav{display:flex;gap:1.5rem;padding:.75rem 1rem;border-bottom:1px solid #1f2937;align-items:center}
+nav a{color:#9ca3af;text-decoration:none;font-size:.875rem}
+nav a.active,nav a:hover{color:#e5e7eb}
+.container{max-width:760px;margin:0 auto;padding:1.5rem 1rem}
+.toolbar{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
+.btn{padding:.45rem .875rem;border:none;border-radius:.375rem;font-size:.85rem;cursor:pointer;
+  font-weight:500;transition:filter .15s}
+.btn:active{filter:brightness(.75)}
+.btn-primary{background:#1db954;color:#fff}.btn-secondary{background:#374151;color:#e5e7eb}
+.btn-danger{background:#7f1d1d;color:#fca5a5}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:#1f2937;color:#9ca3af;font-weight:500;padding:.5rem .6rem;text-align:left;
+  border-bottom:2px solid #374151}
+td{padding:.45rem .6rem;border-bottom:1px solid #1f2937;vertical-align:middle}
+tr:hover td{background:#111827}
+input[type=text]{width:100%;padding:.3rem .4rem;background:#111827;border:1px solid #374151;
+  color:#e5e7eb;border-radius:.25rem;font-size:.85rem}
+input[type=text].time-input{width:4.5rem;text-align:center;font-family:monospace}
+select.preset-sel{padding:.3rem .4rem;background:#111827;border:1px solid #374151;
+  color:#e5e7eb;border-radius:.25rem;font-size:.8rem;width:100%}
+.actual{color:#1db954;font-family:monospace;font-size:.85rem}
+.del-btn{background:none;border:none;color:#6b7280;cursor:pointer;font-size:1rem;padding:.2rem .4rem}
+.del-btn:hover{color:#ff3b30}
+.status{font-size:.75rem;color:#6b7280;padding:.5rem 0}
+</style>
+</head>
+<body>
+<nav>
+  <strong style="color:#e5e7eb">TimerCube</strong>
+  <a href="/">Timer</a>
+  <a href="/speakers.html" class="active">Speakers</a>
+  <a href="/report.html">Report</a>
+  <a href="/settings.html">Settings</a>
+</nav>
+<div class="container">
+  <div class="toolbar">
+    <button class="btn btn-primary"   onclick="addRow()">+ Add Row</button>
+    <button class="btn btn-secondary" onclick="saveSpeakers()">Save</button>
+    <button class="btn btn-secondary" onclick="clearActuals()">Clear Actuals</button>
+    <button class="btn btn-danger"    onclick="clearAll()">Clear List</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Preset</th>
+        <th>Green</th>
+        <th>Amber</th>
+        <th>Red</th>
+        <th>Flash</th>
+        <th>Actual</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="status" id="st">Connecting…</div>
+</div>
+
+<script>
+const PRESETS=[
+  {label:'—',              times:[0,0,0,0]},
+  {label:'1 Minute',       times:[0,0,60,600]},
+  {label:'Table Topics',   times:[60,90,120,150]},
+  {label:'Evaluations',    times:[120,150,180,210]},
+  {label:'Icebreaker',     times:[240,300,360,390]},
+  {label:'5–7 Minutes',    times:[300,360,420,450]},
+  {label:'10 Minutes',     times:[480,540,600,630]},
+  {label:'12 Minutes',     times:[600,660,720,750]},
+  {label:'15 Minutes',     times:[780,840,900,930]},
+  {label:'20 Minutes',     times:[960,1080,1200,1230]},
+];
+let ws, speakers=[];
+
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function fmt(s){if(!s&&s!==0)return'';s=Math.floor(+s);return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');}
+function parseMmSs(str){
+  if(!str)return 0;
+  const p=str.trim().split(':');
+  if(p.length===2)return parseInt(p[0])*60+parseInt(p[1]);
+  return parseInt(p[0])||0;
+}
+
+function connect(){
+  ws=new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen=()=>{document.getElementById('st').textContent='Connected';send({type:'get_speakers'});};
+  ws.onmessage=e=>{const m=JSON.parse(e.data);
+    if(m.type==='speakers'){
+      speakers=m.speakers;
+      while(speakers.length<10)speakers.push({name:'',preset:[0,0,0,0],actual:null});
+      render();
+    }
+    else if(m.type==='state'&&m.elapsed>0&&!m.running&&m.speaker){
+      // Auto-fill actual when timer stops
+      const s=speakers.find(x=>x.name===m.speaker);
+      if(s&&s.actual==null){s.actual=Math.round(m.elapsed);render();}
+    }
+  };
+  ws.onclose=()=>{document.getElementById('st').textContent='Reconnecting…';setTimeout(connect,2000);};
+  ws.onerror=()=>ws.close();
+}
+
+function render(){
+  const tb=document.getElementById('tbody');
+  tb.innerHTML='';
+  speakers.forEach((s,i)=>{
+    const pi=PRESETS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(s.preset||[0,0,0,0]));
+    const row=document.createElement('tr');
+    row.innerHTML=`
+      <td>${i+1}</td>
+      <td><input type="text" value="${escHtml(s.name||'')}" onchange="speakers[${i}].name=this.value"></td>
+      <td>
+        <select class="preset-sel" onchange="applyPreset(${i},this.value)">
+          ${PRESETS.map((p,j)=>`<option value="${j}" ${pi===j?'selected':''}>${p.label}</option>`).join('')}
+        </select>
+      </td>
+      <td><input type="text" class="time-input" value="${fmt(s.preset?.[0])}"
+          onchange="setTime(${i},0,this.value)"></td>
+      <td><input type="text" class="time-input" value="${fmt(s.preset?.[1])}"
+          onchange="setTime(${i},1,this.value)"></td>
+      <td><input type="text" class="time-input" value="${fmt(s.preset?.[2])}"
+          onchange="setTime(${i},2,this.value)"></td>
+      <td><input type="text" class="time-input" value="${fmt(s.preset?.[3])}"
+          onchange="setTime(${i},3,this.value)"></td>
+      <td><span class="actual">${s.actual!=null?fmt(s.actual):''}</span></td>
+      <td><button class="del-btn" onclick="delRow(${i})">✕</button></td>`;
+    tb.appendChild(row);
+  });
+}
+
+function applyPreset(i,pi){
+  speakers[i].preset=[...PRESETS[+pi].times];
+  render();
+}
+function setTime(i,col,val){
+  if(!speakers[i].preset)speakers[i].preset=[0,0,0,0];
+  speakers[i].preset[col]=parseMmSs(val);
+}
+function addRow(){speakers.push({name:'',preset:[0,0,0,0],actual:null});render();}
+function delRow(i){speakers.splice(i,1);render();}
+function saveSpeakers(){send({type:'save_speakers',speakers});}
+function clearActuals(){send({type:'clear_actuals'});speakers.forEach(s=>s.actual=null);render();}
+function clearAll(){if(confirm('Clear all speakers?')){speakers=[];render();send({type:'save_speakers',speakers});}}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+connect();
+</script>
+</body>
+</html>
