@@ -1,5 +1,5 @@
 """
-Async HTTP + WebSocket server for the ESP32 Toast Timer.
+Async HTTP + WebSocket server for the ESP32 TimerCube.
 - Serves static files from /public/
 - /ws  → WebSocket endpoint (timer commands & state broadcasts)
 - /api/speakers, /api/config, /api/info → REST endpoints
@@ -353,15 +353,20 @@ class WebServer:
             await _ws_send(writer, json.dumps({'type': 'config', 'config': self.config}))
         elif t == 'save_config':
             new_cfg = msg.get('config', {})
-            # Deep-merge only known top-level keys
+            wifi_changed = False
             for k in ('wifi', 'timer'):
                 if k in new_cfg:
                     self.config[k].update(new_cfg[k])
+                    if k == 'wifi':
+                        wifi_changed = True
+            if 'language' in new_cfg:
+                self.config['language'] = new_cfg['language']
             from config import save_config
             save_config(self.config)
             await _ws_send(writer, json.dumps({'type': 'config_saved', 'ok': True}))
-            # Reconnect WiFi in background
-            asyncio.create_task(self._reconnect_wifi())
+            # Only reconnect WiFi when WiFi settings actually changed
+            if wifi_changed:
+                asyncio.create_task(self._reconnect_wifi())
         elif t == 'reboot':
             await _ws_send(writer, json.dumps({'type': 'rebooting'}))
             await asyncio.sleep(0.8)
@@ -380,7 +385,7 @@ class WebServer:
             await _send_json(writer, {
                 'ip':   self.ip,
                 'mode': self.mode,
-                'ap_ssid': self.config['wifi'].get('ap_ssid', 'ToastTimer'),
+                'ap_ssid': self.config['wifi'].get('ap_ssid', 'TimerCube'),
                 'url':  f'http://{self.ip}/',
             })
             return
@@ -391,6 +396,32 @@ class WebServer:
 
         if path == '/api/config' and method == 'GET':
             await _send_json(writer, self.config)
+            return
+
+        if path == '/api/wifi-scan' and method == 'GET':
+            try:
+                import network as _net
+                sta = _net.WLAN(_net.STA_IF)
+                was_active = sta.active()
+                sta.active(True)
+                raw = sta.scan()
+                seen = set()
+                nets = []
+                for r in raw:
+                    try:
+                        ssid = r[0].decode('utf-8') if isinstance(r[0], bytes) else str(r[0])
+                    except Exception:
+                        ssid = ''
+                    if ssid and ssid not in seen:
+                        seen.add(ssid)
+                        nets.append({'ssid': ssid, 'rssi': r[3], 'auth': r[4]})
+                nets.sort(key=lambda x: -x['rssi'])
+                if not was_active:
+                    sta.active(False)
+            except Exception as e:
+                print('WiFi scan error:', e)
+                nets = []
+            await _send_json(writer, nets)
             return
 
         # ── Captive-portal probes ──────────────────────────────────────────

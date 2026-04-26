@@ -5,12 +5,13 @@ CONFIG_FILE = '/config.json'
 _DEFAULTS = {
     'wifi': {
         'networks': [],
-        'ap_ssid': 'ToastTimer',
+        'ap_ssid': 'TimerCube',
         'ap_password': 'toastmaster',
     },
     'timer': {
         'brightness': 0.6,
     },
+    'language': 'en',
 }
 
 

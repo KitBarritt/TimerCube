@@ -73,12 +73,13 @@ async def connect_wifi(config, matrix):
     if networks:
         sta = network.WLAN(network.STA_IF)
         sta.active(True)
-        matrix.show_char('S', BLUE)
         print('WiFi: scanning for', len(networks), 'saved network(s)')
 
         for idx, net in enumerate(networks):
             ssid = net.get('ssid', '')
             pwd  = net.get('password', '')
+            n    = str(min(idx + 1, 9))
+            matrix.show_two_chars('S', n, BLUE, BLUE)
             print(f'  Trying "{ssid}" …')
             try:
                 sta.connect(ssid, pwd)
@@ -92,7 +93,7 @@ async def connect_wifi(config, matrix):
                 if sta.isconnected():
                     ip = sta.ifconfig()[0]
                     print(f'  Connected! IP={ip}')
-                    matrix.show_char('C', GREEN)
+                    matrix.show_two_chars('C', n, GREEN, GREEN)
                     await asyncio.sleep(2)
                     return ip, 'client', sta
 
@@ -107,7 +108,7 @@ async def connect_wifi(config, matrix):
 
 
 async def _start_ap(config, matrix):
-    ap_ssid = config['wifi'].get('ap_ssid', 'ToastTimer')
+    ap_ssid = config['wifi'].get('ap_ssid', 'TimerCube')
     ap_pass = config['wifi'].get('ap_password', 'toastmaster')
 
     ap = network.WLAN(network.AP_IF)

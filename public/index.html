@@ -4,7 +4,7 @@
 <link rel="icon" type="image/x-icon" href="favicon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Toast Timer</title>
+<title>TimerCube</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -49,36 +49,36 @@ select{width:100%;padding:.5rem;background:#1f2937;border:1px solid #374151;colo
 <body>
 <nav>
   <strong style="color:#e5e7eb">TimerCube</strong>
-  <a href="/" class="active">Timer</a>
-  <a href="/speakers.html">Speakers</a>
-  <a href="/report.html">Report</a>
-  <a href="/settings.html">Settings</a>
+  <a href="/" class="active" data-i18n="nav_timer">Timer</a>
+  <a href="/speakers.html" data-i18n="nav_speakers">Speakers</a>
+  <a href="/report.html" data-i18n="nav_report">Report</a>
+  <a href="/settings.html" data-i18n="nav_settings">Settings</a>
 </nav>
 <div class="container">
   <div class="display off" id="disp">0:00</div>
   <div class="thresholds" id="thresh"></div>
 
   <div class="btn-row">
-    <button class="btn btn-start" id="btnStart" onclick="cmd('start')">Start</button>
-    <button class="btn btn-stop"  onclick="cmd('stop')">Stop</button>
-    <button class="btn btn-reset" onclick="cmd('reset')">Reset</button>
+    <button class="btn btn-start" id="btnStart" onclick="cmd('start')" data-i18n="btn_start">Start</button>
+    <button class="btn btn-stop"  onclick="cmd('stop')" data-i18n="btn_stop">Stop</button>
+    <button class="btn btn-reset" onclick="cmd('reset')" data-i18n="btn_reset">Reset</button>
   </div>
 
-  <div class="sec-label">Presets</div>
+  <div class="sec-label" data-i18n="label_presets">Presets</div>
   <div class="presets" id="presets"></div>
 
-  <div class="sec-label">Speaker</div>
+  <div class="sec-label" data-i18n="label_speaker">Speaker</div>
   <select id="spkSel" onchange="pickSpeaker(this.value)">
-    <option value="">— No speaker —</option>
+    <option value="" data-i18n="opt_no_speaker">— No speaker —</option>
   </select>
 
-  <div class="sec-label">Manual light</div>
+  <div class="sec-label" data-i18n="label_manual_light">Manual light</div>
   <div class="lights">
-    <button class="light l-off"   onclick="cmd('set_colour','off')">Off</button>
-    <button class="light l-green" onclick="cmd('set_colour','green')">Green</button>
-    <button class="light l-amber" onclick="cmd('set_colour','amber')">Amber</button>
-    <button class="light l-red"   onclick="cmd('set_colour','red')">Red</button>
-    <button class="light l-flash" onclick="cmd('set_colour','flash')">Flash</button>
+    <button class="light l-off"   onclick="cmd('set_colour','off')"   data-i18n="light_off">Off</button>
+    <button class="light l-green" onclick="cmd('set_colour','green')" data-i18n="light_green">Green</button>
+    <button class="light l-amber" onclick="cmd('set_colour','amber')" data-i18n="light_amber">Amber</button>
+    <button class="light l-red"   onclick="cmd('set_colour','red')"   data-i18n="light_red">Red</button>
+    <button class="light l-flash" onclick="cmd('set_colour','flash')" data-i18n="light_flash">Flash</button>
   </div>
 
   <div class="statusbar">
@@ -88,19 +88,38 @@ select{width:100%;padding:.5rem;background:#1f2937;border:1px solid #374151;colo
   </div>
 </div>
 
+<script src="/translations.js"></script>
 <script>
-const PRESETS=[
-  {label:'1 Minute',      times:[0,0,60,600]},
-  {label:'Table Topics',  times:[60,90,120,150]},
-  {label:'Evaluations',   times:[120,150,180,210]},
-  {label:'Icebreaker',    times:[240,300,360,390]},
-  {label:'5–7 Minutes',   times:[300,360,420,450]},
-  {label:'10 Minutes',    times:[480,540,600,630]},
-  {label:'12 Minutes',    times:[600,660,720,750]},
-  {label:'15 Minutes',    times:[780,840,900,930]},
-  {label:'20 Minutes',    times:[960,1080,1200,1230]},
-  {label:'Manual',        times:[0,0,0,0]},
+// ── i18n ─────────────────────────────────────────────────────────────────────
+let currentLang = 'en';
+function t(key) {
+  const tr = (window.TRANSLATIONS||{})[currentLang]||{};
+  const en = (window.TRANSLATIONS||{}).en||{};
+  return tr[key]!==undefined ? tr[key] : (en[key]!==undefined ? en[key] : key);
+}
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // Re-render preset buttons and speaker dropdown with translated labels
+  buildPresets();
+  fillSpk();
+}
+
+// ── Preset definitions (times only; labels come from translations) ────────────
+const PRESET_KEYS = [
+  {key:'pre_1min',       times:[0,0,60,600]},
+  {key:'pre_table_topics',times:[60,90,120,150]},
+  {key:'pre_evaluations', times:[120,150,180,210]},
+  {key:'pre_icebreaker',  times:[240,300,360,390]},
+  {key:'pre_5_7min',      times:[300,360,420,450]},
+  {key:'pre_10min',       times:[480,540,600,630]},
+  {key:'pre_12min',       times:[600,660,720,750]},
+  {key:'pre_15min',       times:[780,840,900,930]},
+  {key:'pre_20min',       times:[960,1080,1200,1230]},
+  {key:'pre_manual',      times:[0,0,0,0]},
 ];
+
 let ws,state={colour:'off',elapsed:0,running:false,thresholds:[0,0,0,0],speaker:'',flash_on:false};
 let speakers=[],activePre=-1;
 
@@ -119,12 +138,16 @@ function setStatus(text,colour){
 
 function connect(){
   ws=new WebSocket('ws://'+location.host+'/ws');
-  ws.onopen=()=>setStatus('Connected','#1db954');
+  ws.onopen=()=>setStatus(t('st_connected'),'#1db954');
   ws.onmessage=e=>{const m=JSON.parse(e.data);
     if(m.type==='state'){state=m;render();}
     else if(m.type==='speakers'){speakers=m.speakers;fillSpk();}
+    else if(m.type==='config'){
+      const lang=m.config&&m.config.language?m.config.language:'en';
+      if(lang!==currentLang){currentLang=lang;applyI18n();}
+    }
   };
-  ws.onclose=()=>{setStatus('Reconnecting…','#ff8c1a');setTimeout(connect,2000);};
+  ws.onclose=()=>{setStatus(t('st_reconnecting'),'#ff8c1a');setTimeout(connect,2000);};
   ws.onerror=()=>ws.close();
 }
 
@@ -135,23 +158,24 @@ function render(){
   if(cls==='flash') cls='flash'+(state.flash_on?'':' dim');
   else if(cls==='off'&&state.running) cls='running';
   d.className='display '+cls;
-  const t=state.thresholds;
   const thEl=document.getElementById('thresh');
-  if(t.every(v=>!v)){thEl.textContent='Manual mode';}
+  const thr=state.thresholds;
+  if(thr.every(v=>!v)){thEl.textContent=t('threshold_manual');}
   else{
     const cols=['#1db954','#ff8c1a','#ff3b30'];
     const sep='<span style="color:#4b5563"> · </span>';
-    thEl.innerHTML=t.slice(0,3).map((v,i)=>
+    thEl.innerHTML=thr.slice(0,3).map((v,i)=>
       v>0?`<span style="color:${cols[i]}">${fmt(v)}</span>`:null
     ).filter(Boolean).join(sep);
   }
-  document.getElementById('btnStart').textContent=state.running?'Running…':'Start';
-  document.getElementById('btnStart').disabled=state.running;
+  const btnStart=document.getElementById('btnStart');
+  btnStart.textContent=state.running?t('btn_running'):t('btn_start');
+  btnStart.disabled=state.running;
 }
 
 function fillSpk(){
   const sel=document.getElementById('spkSel'),cur=sel.value;
-  sel.innerHTML='<option value="">— No speaker —</option>';
+  sel.innerHTML=`<option value="">${t('opt_no_speaker')}</option>`;
   speakers.filter(s=>s.name&&s.name.trim()).forEach(s=>{
     const o=document.createElement('option');
     o.value=s.name;o.textContent=s.name;sel.appendChild(o);
@@ -164,7 +188,7 @@ function pickSpeaker(name){
   const spk=speakers.find(s=>s.name===name);
   if(spk&&spk.preset){
     send({type:'set_thresholds',thresholds:spk.preset});
-    const idx=PRESETS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(spk.preset));
+    const idx=PRESET_KEYS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(spk.preset));
     highlightPre(idx);
   }
 }
@@ -174,13 +198,17 @@ function highlightPre(idx){
   document.querySelectorAll('.preset').forEach((b,i)=>b.classList.toggle('active',i===idx));
 }
 
-const grid=document.getElementById('presets');
-PRESETS.forEach((p,i)=>{
-  const b=document.createElement('button');
-  b.className='preset';b.textContent=p.label;
-  b.onclick=()=>{send({type:'set_thresholds',thresholds:p.times});highlightPre(i);};
-  grid.appendChild(b);
-});
+function buildPresets(){
+  const grid=document.getElementById('presets');
+  grid.innerHTML='';
+  PRESET_KEYS.forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='preset'+(activePre===i?' active':'');
+    b.textContent=t(p.key);
+    b.onclick=()=>{send({type:'set_thresholds',thresholds:p.times});highlightPre(i);};
+    grid.appendChild(b);
+  });
+}
 
 document.addEventListener('keydown',e=>{
   if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
@@ -195,6 +223,9 @@ document.addEventListener('keydown',e=>{
   else if(k==='c')cmd('set_colour','off');
 });
 
+// Initial render with default language, then connect
+buildPresets();
+setStatus(t('st_connecting'),'#6b7280');
 connect();
 </script>
 </body>

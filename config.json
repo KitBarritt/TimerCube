@@ -15,7 +15,7 @@
            "priority": 2}
            ], 
         "ap_password": "toastmaster", 
-        "ap_ssid": "ToastTimer"
+        "ap_ssid": "TimerCube"
      }, 
    "timer": {
    "brightness": 0.19

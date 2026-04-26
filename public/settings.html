@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Settings – Toast Timer</title>
+<title>Settings – TimerCube</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -17,6 +17,8 @@ label{font-size:.8rem;color:#9ca3af;display:block;margin-bottom:.3rem}
 input[type=text],input[type=password]{width:100%;padding:.45rem .6rem;background:#111827;
   border:1px solid #374151;color:#e5e7eb;border-radius:.375rem;font-size:.9rem}
 input[type=range]{width:100%;accent-color:#1db954}
+select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid #374151;
+  color:#e5e7eb;border-radius:.375rem;font-size:.9rem}
 .row{display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem}
 .row label{margin:0;flex:1}
 .net-row{display:flex;align-items:center;gap:.5rem;padding:.5rem;background:#111827;
@@ -42,201 +44,349 @@ input[type=range]{width:100%;accent-color:#1db954}
   transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
 .status{font-size:.75rem;color:#6b7280;text-align:center;padding:.5rem}
+.scan-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;background:#111827;
+  border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.3rem}
+.scan-ssid{flex:1;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scan-rssi{font-size:.75rem;color:#6b7280;white-space:nowrap}
 </style>
 </head>
 <body>
 <nav>
   <strong style="color:#e5e7eb">TimerCube</strong>
-  <a href="/">Timer</a>
-  <a href="/speakers.html">Speakers</a>
-  <a href="/report.html">Report</a>
-  <a href="/settings.html" class="active">Settings</a>
+  <a href="/" data-i18n="nav_timer">Timer</a>
+  <a href="/speakers.html" data-i18n="nav_speakers">Speakers</a>
+  <a href="/report.html" data-i18n="nav_report">Report</a>
+  <a href="/settings.html" class="active" data-i18n="nav_settings">Settings</a>
 </nav>
 <div class="container">
 
+  <!-- Language -->
+  <div class="card">
+    <h2 data-i18n="h_language">Language</h2>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <select class="field" id="langSel" onchange="onLangChange(this.value)" style="flex:1">
+        <option value="en">English</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="es">Español</option>
+      </select>
+      <button class="btn btn-primary" id="btnSaveLang" onclick="saveLang()" data-i18n="btn_save">Save</button>
+    </div>
+  </div>
+
   <!-- Brightness -->
   <div class="card">
-    <h2>Display Brightness</h2>
-    <label>Brightness: <span id="brightVal">60</span>%</label>
+    <h2 data-i18n="h_brightness">Display Brightness</h2>
+    <label><span data-i18n="lbl_brightness">Brightness:</span> <span id="brightVal">60</span>%</label>
     <input type="range" id="brightSlider" min="0" max="100" value="60"
       oninput="setBrightness(this.value)">
   </div>
 
   <!-- WiFi networks -->
   <div class="card">
-    <h2>WiFi Networks
+    <h2 data-i18n="h_wifi">WiFi Networks
       <button class="btn btn-secondary btn-sm" style="float:right"
-        onclick="addNet()">+ Add</button>
+        onclick="addNet()" id="btnAdd">+ Add</button>
     </h2>
     <div id="netList"></div>
     <div style="display:flex;gap:.5rem;margin-top:.75rem">
-      <button class="btn btn-primary" onclick="saveWifi()">Save &amp; Connect</button>
+      <button class="btn btn-primary" id="btnSaveConnect" onclick="saveWifi()" data-i18n="btn_save_connect">Save &amp; Connect</button>
     </div>
     <div id="wifiResult" class="status"></div>
   </div>
 
+  <!-- Available networks (scan) -->
+  <div class="card">
+    <h2 data-i18n="h_available">Available Networks
+      <button class="btn btn-secondary btn-sm" style="float:right"
+        id="btnScan" onclick="doScan()">Scan</button>
+    </h2>
+    <div id="scanList"></div>
+  </div>
+
   <!-- AP settings -->
   <div class="card">
-    <h2>Hotspot (fallback AP)</h2>
+    <h2 data-i18n="h_hotspot">Hotspot (fallback AP)</h2>
     <div class="row">
-      <label for="apSsid">SSID</label>
-      <input type="text" id="apSsid" style="flex:2" placeholder="ToastTimer">
+      <label for="apSsid" data-i18n="lbl_ssid">SSID</label>
+      <input type="text" id="apSsid" style="flex:2" placeholder="TimerCube">
     </div>
     <div class="row">
-      <label for="apPass">Password</label>
+      <label for="apPass" data-i18n="lbl_password">Password</label>
       <input type="password" id="apPass" style="flex:2" placeholder="toastmaster">
     </div>
-    <small style="color:#6b7280;font-size:.75rem">Leave password blank for open network.</small>
+    <small style="color:#6b7280;font-size:.75rem" data-i18n="hint_open_network">Leave password blank for open network.</small>
   </div>
 
   <!-- Connection info -->
   <div class="card">
-    <h2>Connection Info</h2>
-    <div class="info-row"><span>Mode</span><span class="info-val" id="infoMode">—</span></div>
-    <div class="info-row"><span>IP address</span><span class="info-val" id="infoIp">—</span></div>
-    <div class="info-row"><span>URL</span><span class="info-val" id="infoUrl">—</span></div>
-    <div class="info-row"><span>AP SSID</span><span class="info-val" id="infoAp">—</span></div>
+    <h2 data-i18n="h_conn_info">Connection Info</h2>
+    <div class="info-row"><span data-i18n="lbl_mode">Mode</span><span class="info-val" id="infoMode">—</span></div>
+    <div class="info-row"><span data-i18n="lbl_ip">IP address</span><span class="info-val" id="infoIp">—</span></div>
+    <div class="info-row"><span data-i18n="lbl_url">URL</span><span class="info-val" id="infoUrl">—</span></div>
+    <div class="info-row"><span data-i18n="lbl_ap_ssid">AP SSID</span><span class="info-val" id="infoAp">—</span></div>
   </div>
 
   <!-- Reboot -->
   <div style="display:flex;gap:.75rem;margin-bottom:1.25rem">
-    <button class="btn btn-warn" onclick="doReboot()">Reboot Device</button>
+    <button class="btn btn-warn" id="btnReboot" onclick="doReboot()" data-i18n="btn_reboot">Reboot Device</button>
   </div>
 
   <div class="status" id="st">Connecting…</div>
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="/translations.js"></script>
 <script>
-let ws, cfg={wifi:{networks:[],ap_ssid:'ToastTimer',ap_password:'toastmaster'},timer:{brightness:.6}};
+// ── i18n ─────────────────────────────────────────────────────────────────────
+let currentLang = 'en';
+function t(key) {
+  const tr = (window.TRANSLATIONS||{})[currentLang]||{};
+  const en = (window.TRANSLATIONS||{}).en||{};
+  return tr[key]!==undefined ? tr[key] : (en[key]!==undefined ? en[key] : key);
+}
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  // Re-render dynamic content
+  document.getElementById('btnAdd').textContent = t('btn_add');
+  document.getElementById('btnScan').textContent = t('btn_scan');
+  document.getElementById('btnReboot').textContent = t('btn_reboot');
+  renderNetList();
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let ws, cfg = {
+  wifi:{networks:[],ap_ssid:'TimerCube',ap_password:'toastmaster'},
+  timer:{brightness:.6},
+  language:'en'
+};
 
 function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
 function showToast(msg,ok=true){
-  const t=document.getElementById('toast');
-  t.textContent=msg;t.style.background=ok?'#1db954':'#dc2626';
-  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);
+  const toast=document.getElementById('toast');
+  toast.textContent=msg;
+  toast.style.background=ok?'#1db954':'#dc2626';
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'),2500);
 }
 
+// ── Language ──────────────────────────────────────────────────────────────────
+function onLangChange(lang) {
+  // Apply locally so the UI previews the language immediately; not saved yet.
+  currentLang = lang;
+  cfg.language = lang;
+  applyI18n();
+}
+function saveLang() {
+  send({type:'save_config', config:{language: cfg.language}});
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 function connect(){
-  ws=new WebSocket('ws://'+location.host+'/ws');
-  ws.onopen=()=>{
-    document.getElementById('st').textContent='Connected';
+  ws = new WebSocket('ws://'+location.host+'/ws');
+  ws.onopen = () => {
+    document.getElementById('st').textContent = t('st_connected');
     send({type:'get_config'});
     fetch('/api/info').then(r=>r.json()).then(applyInfo).catch(()=>{});
   };
-  ws.onmessage=e=>{const m=JSON.parse(e.data);
-    if(m.type==='config'){cfg=m.config;applyConfig();}
-    else if(m.type==='config_saved'){
-      const ok=m.ok!==false;
-      document.getElementById('wifiResult').textContent=ok?'Saved. Reconnecting WiFi…':'Save failed: '+(m.error||'');
-      if(ok)showToast('Settings saved');else showToast('Save failed','err');
+  ws.onmessage = e => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'config') { cfg = m.config; applyConfig(); }
+    else if (m.type === 'config_saved') {
+      const ok = m.ok !== false;
+      document.getElementById('wifiResult').textContent =
+        ok ? t('wifi_saved') : t('wifi_save_failed') + (m.error||'');
+      showToast(ok ? t('toast_saved') : t('toast_failed'), ok);
     }
-    else if(m.type==='rebooting'){showToast('Rebooting…');}
+    else if (m.type === 'rebooting') { showToast(t('msg_rebooting')); }
   };
-  ws.onclose=()=>{document.getElementById('st').textContent='Reconnecting…';setTimeout(connect,2000);};
-  ws.onerror=()=>ws.close();
+  ws.onclose = () => {
+    document.getElementById('st').textContent = t('st_reconnecting');
+    setTimeout(connect, 2000);
+  };
+  ws.onerror = () => ws.close();
 }
 
 function applyInfo(info){
-  document.getElementById('infoMode').textContent=info.mode||'—';
-  document.getElementById('infoIp').textContent=info.ip||'—';
-  document.getElementById('infoUrl').textContent=info.url||'—';
-  document.getElementById('infoAp').textContent=info.ap_ssid||'—';
+  document.getElementById('infoMode').textContent = info.mode||'—';
+  document.getElementById('infoIp').textContent   = info.ip||'—';
+  document.getElementById('infoUrl').textContent  = info.url||'—';
+  document.getElementById('infoAp').textContent   = info.ap_ssid||'—';
 }
 
 function applyConfig(){
-  const b=Math.round((cfg.timer?.brightness??0.6)*100);
-  document.getElementById('brightSlider').value=b;
-  document.getElementById('brightVal').textContent=b;
-  document.getElementById('apSsid').value=cfg.wifi?.ap_ssid??'ToastTimer';
-  document.getElementById('apPass').value=cfg.wifi?.ap_password??'toastmaster';
+  const lang = cfg.language || 'en';
+  if (lang !== currentLang) {
+    currentLang = lang;
+    document.getElementById('langSel').value = lang;
+    applyI18n();
+  }
+  const b = Math.round((cfg.timer?.brightness ?? 0.6) * 100);
+  document.getElementById('brightSlider').value = b;
+  document.getElementById('brightVal').textContent = b;
+  document.getElementById('apSsid').value = cfg.wifi?.ap_ssid ?? 'TimerCube';
+  document.getElementById('apPass').value = cfg.wifi?.ap_password ?? 'toastmaster';
   renderNetList();
 }
 
 function setBrightness(val){
-  document.getElementById('brightVal').textContent=val;
+  document.getElementById('brightVal').textContent = val;
   cfg.timer = cfg.timer || {};
-  cfg.timer.brightness = +val/100;
-  send({type:'set_brightness',brightness:+val/100});
+  cfg.timer.brightness = +val / 100;
+  send({type:'set_brightness', brightness: +val / 100});
 }
 
-// ── Network list ──────────────────────────────────────────────────────────
-let editOpen=-1;
+// ── Network list ──────────────────────────────────────────────────────────────
+let editOpen = -1;
 
 function renderNetList(){
-  const nets=cfg.wifi.networks||[];
-  const div=document.getElementById('netList');
-  div.innerHTML='';
-  if(!nets.length){div.innerHTML='<p style="color:#6b7280;font-size:.85rem">No networks saved.</p>';return;}
-  nets.forEach((n,i)=>{
-    const row=document.createElement('div');row.className='net-row';
-    row.innerHTML=`
-      <span class="pri">${n.priority??i}</span>
+  const nets = cfg.wifi.networks || [];
+  const div  = document.getElementById('netList');
+  div.innerHTML = '';
+  if (!nets.length) {
+    div.innerHTML = `<p style="color:#6b7280;font-size:.85rem">${t('no_networks')}</p>`;
+    return;
+  }
+  nets.forEach((n, i) => {
+    const row = document.createElement('div');
+    row.className = 'net-row';
+    row.innerHTML = `
+      <span class="pri">${n.priority ?? i}</span>
       <span class="ssid">${escHtml(n.ssid)}</span>
-      <button class="btn btn-secondary btn-sm" onclick="toggleEdit(${i})">Edit</button>
+      <button class="btn btn-secondary btn-sm" onclick="toggleEdit(${i})">${t('btn_edit')}</button>
       <button class="btn btn-secondary btn-sm" onclick="moveNet(${i},-1)" ${i===0?'disabled':''}>↑</button>
       <button class="btn btn-secondary btn-sm" onclick="moveNet(${i},1)" ${i===nets.length-1?'disabled':''}>↓</button>
       <button class="btn btn-danger btn-sm" onclick="delNet(${i})">✕</button>`;
     div.appendChild(row);
 
-    const ep=document.createElement('div');ep.className='edit-panel'+(editOpen===i?' open':'');
-    ep.id='ep'+i;
-    ep.innerHTML=`
-      <label>SSID<input type="text" id="es${i}" value="${escHtml(n.ssid)}"></label>
-      <label>Password<input type="password" id="pw${i}" value="${escHtml(n.password||'')}"></label>
-      <label>Static IP <small style="color:#6b7280">(optional — leave blank for DHCP)</small>
+    const ep = document.createElement('div');
+    ep.className = 'edit-panel' + (editOpen === i ? ' open' : '');
+    ep.id = 'ep' + i;
+    ep.innerHTML = `
+      <label>${t('lbl_ssid')}<input type="text" id="es${i}" value="${escHtml(n.ssid)}"></label>
+      <label>${t('lbl_password')}<input type="password" id="pw${i}" value="${escHtml(n.password||'')}"></label>
+      <label>${t('lbl_static_ip')} <small style="color:#6b7280">${t('lbl_static_ip_hint')}</small>
         <input type="text" id="si${i}" value="${escHtml(n.static_ip||'')}" placeholder="e.g. 192.168.1.100"></label>
       <div style="display:flex;gap:.4rem;margin-top:.4rem">
-        <button class="btn btn-primary btn-sm" onclick="applyEdit(${i})">Apply</button>
-        <button class="btn btn-secondary btn-sm" onclick="closeEdit()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="applyEdit(${i})">${t('btn_apply')}</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeEdit()">${t('btn_cancel')}</button>
       </div>`;
     div.appendChild(ep);
   });
 }
 
 function toggleEdit(i){
-  editOpen=editOpen===i?-1:i;renderNetList();
-  if(editOpen===i){const el=document.getElementById('es'+i);if(el)el.focus();}
+  editOpen = editOpen === i ? -1 : i;
+  renderNetList();
+  if (editOpen === i) { const el = document.getElementById('es'+i); if(el) el.focus(); }
 }
-function closeEdit(){editOpen=-1;renderNetList();}
+function closeEdit(){ editOpen = -1; renderNetList(); }
 function applyEdit(i){
-  cfg.wifi.networks[i].ssid=document.getElementById('es'+i).value.trim();
-  cfg.wifi.networks[i].password=document.getElementById('pw'+i).value;
-  const si=document.getElementById('si'+i).value.trim();
-  if(si) cfg.wifi.networks[i].static_ip=si;
-  else   delete cfg.wifi.networks[i].static_ip;
-  editOpen=-1;renderNetList();
-}
-function moveNet(i,dir){
-  const nets=cfg.wifi.networks,j=i+dir;
-  if(j<0||j>=nets.length)return;
-  [nets[i],nets[j]]=[nets[j],nets[i]];
-  nets.forEach((n,k)=>n.priority=k);
+  cfg.wifi.networks[i].ssid     = document.getElementById('es'+i).value.trim();
+  cfg.wifi.networks[i].password = document.getElementById('pw'+i).value;
+  const si = document.getElementById('si'+i).value.trim();
+  if (si) cfg.wifi.networks[i].static_ip = si;
+  else    delete cfg.wifi.networks[i].static_ip;
+  editOpen = -1;
   renderNetList();
 }
-function delNet(i){cfg.wifi.networks.splice(i,1);cfg.wifi.networks.forEach((n,k)=>n.priority=k);renderNetList();}
+function moveNet(i, dir){
+  const nets = cfg.wifi.networks, j = i + dir;
+  if (j < 0 || j >= nets.length) return;
+  [nets[i], nets[j]] = [nets[j], nets[i]];
+  nets.forEach((n, k) => n.priority = k);
+  renderNetList();
+}
+function delNet(i){
+  cfg.wifi.networks.splice(i, 1);
+  cfg.wifi.networks.forEach((n, k) => n.priority = k);
+  renderNetList();
+}
 function addNet(){
-  cfg.wifi.networks.push({ssid:'',password:'',priority:cfg.wifi.networks.length});
-  editOpen=cfg.wifi.networks.length-1;renderNetList();
-  const el=document.getElementById('es'+editOpen);if(el)el.focus();
+  cfg.wifi.networks.push({ssid:'', password:'', priority: cfg.wifi.networks.length});
+  editOpen = cfg.wifi.networks.length - 1;
+  renderNetList();
+  const el = document.getElementById('es' + editOpen);
+  if (el) el.focus();
 }
 
 function saveWifi(){
-  cfg.wifi.ap_ssid=document.getElementById('apSsid').value.trim()||'ToastTimer';
-  cfg.wifi.ap_password=document.getElementById('apPass').value;
-  send({type:'save_config',config:{wifi:cfg.wifi,timer:cfg.timer}});
+  cfg.wifi.ap_ssid    = document.getElementById('apSsid').value.trim() || 'TimerCube';
+  cfg.wifi.ap_password = document.getElementById('apPass').value;
+  send({type:'save_config', config:{wifi: cfg.wifi, timer: cfg.timer}});
 }
 
+// ── WiFi scan ─────────────────────────────────────────────────────────────────
+let scanResults = [];
+
+function rssiToBars(rssi){
+  if (rssi >= -50) return '▂▄▆█';
+  if (rssi >= -60) return '▂▄▆\u2591';
+  if (rssi >= -70) return '▂▄\u2591\u2591';
+  return '▂\u2591\u2591\u2591';
+}
+
+function doScan(){
+  const btn = document.getElementById('btnScan');
+  btn.textContent = t('btn_scanning');
+  btn.disabled = true;
+  const list = document.getElementById('scanList');
+  list.innerHTML = '';
+  scanResults = [];
+
+  fetch('/api/wifi-scan')
+    .then(r => r.json())
+    .then(nets => {
+      btn.textContent = t('btn_scan');
+      btn.disabled = false;
+      scanResults = nets;
+      if (!nets.length) {
+        list.innerHTML = `<p style="color:#6b7280;font-size:.85rem">${t('scan_empty')}</p>`;
+        return;
+      }
+      nets.forEach((n, i) => {
+        const row = document.createElement('div');
+        row.className = 'scan-row';
+        row.innerHTML = `
+          <span class="scan-ssid">${escHtml(n.ssid)}</span>
+          <span class="scan-rssi">${rssiToBars(n.rssi)} ${n.rssi} dBm</span>
+          <button class="btn btn-secondary btn-sm" onclick="addScanned(${i})">${t('btn_add_scanned')}</button>`;
+        list.appendChild(row);
+      });
+    })
+    .catch(() => {
+      btn.textContent = t('btn_scan');
+      btn.disabled = false;
+      list.innerHTML = `<p style="color:#dc2626;font-size:.85rem">${t('msg_error')}</p>`;
+    });
+}
+
+function addScanned(idx){
+  const ssid = scanResults[idx].ssid;
+  cfg.wifi.networks.push({ssid, password:'', priority: cfg.wifi.networks.length});
+  editOpen = cfg.wifi.networks.length - 1;
+  renderNetList();
+  // Scroll net list into view and focus password field
+  setTimeout(() => {
+    const pw = document.getElementById('pw' + editOpen);
+    if (pw) { pw.scrollIntoView({behavior:'smooth', block:'center'}); pw.focus(); }
+  }, 80);
+}
+
+// ── Reboot ────────────────────────────────────────────────────────────────────
 function doReboot(){
-  if(confirm('Reboot the device?'))send({type:'reboot'});
+  if (confirm(t('confirm_reboot'))) send({type:'reboot'});
 }
 
 function escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// Init
+document.getElementById('st').textContent = t('st_connecting');
 connect();
 </script>
 </body>
 </html>
-

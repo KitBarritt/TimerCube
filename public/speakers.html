@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Speakers – Toast Timer</title>
+<title>Speakers – TimerCube</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -36,30 +36,30 @@ select.preset-sel{padding:.3rem .4rem;background:#111827;border:1px solid #37415
 <body>
 <nav>
   <strong style="color:#e5e7eb">TimerCube</strong>
-  <a href="/">Timer</a>
-  <a href="/speakers.html" class="active">Speakers</a>
-  <a href="/report.html">Report</a>
-  <a href="/settings.html">Settings</a>
+  <a href="/" data-i18n="nav_timer">Timer</a>
+  <a href="/speakers.html" class="active" data-i18n="nav_speakers">Speakers</a>
+  <a href="/report.html" data-i18n="nav_report">Report</a>
+  <a href="/settings.html" data-i18n="nav_settings">Settings</a>
 </nav>
 <div class="container">
   <div class="toolbar">
-    <button class="btn btn-primary"   onclick="addRow()">+ Add Row</button>
-    <button class="btn btn-secondary" onclick="saveSpeakers()">Save</button>
-    <button class="btn btn-secondary" onclick="clearActuals()">Clear Actuals</button>
-    <button class="btn btn-danger"    onclick="clearAll()">Clear List</button>
+    <button class="btn btn-primary"   id="btnAddRow"      onclick="addRow()">+ Add Row</button>
+    <button class="btn btn-secondary" id="btnSave"        onclick="saveSpeakers()">Save</button>
+    <button class="btn btn-secondary" id="btnClearActuals" onclick="clearActuals()">Clear Actuals</button>
+    <button class="btn btn-danger"    id="btnClearList"   onclick="clearAll()">Clear List</button>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th>#</th>
-        <th>Name</th>
-        <th>Preset</th>
-        <th>Green</th>
-        <th>Amber</th>
-        <th>Red</th>
-        <th>Flash</th>
-        <th>Actual</th>
+        <th id="th_num">#</th>
+        <th id="th_name">Name</th>
+        <th id="th_preset">Preset</th>
+        <th id="th_green">Green</th>
+        <th id="th_amber">Amber</th>
+        <th id="th_red">Red</th>
+        <th id="th_flash">Flash</th>
+        <th id="th_actual">Actual</th>
         <th></th>
       </tr>
     </thead>
@@ -69,19 +69,46 @@ select.preset-sel{padding:.3rem .4rem;background:#111827;border:1px solid #37415
   <div class="status" id="st">Connecting…</div>
 </div>
 
+<script src="/translations.js"></script>
 <script>
-const PRESETS=[
-  {label:'—',              times:[0,0,0,0]},
-  {label:'1 Minute',       times:[0,0,60,600]},
-  {label:'Table Topics',   times:[60,90,120,150]},
-  {label:'Evaluations',    times:[120,150,180,210]},
-  {label:'Icebreaker',     times:[240,300,360,390]},
-  {label:'5–7 Minutes',    times:[300,360,420,450]},
-  {label:'10 Minutes',     times:[480,540,600,630]},
-  {label:'12 Minutes',     times:[600,660,720,750]},
-  {label:'15 Minutes',     times:[780,840,900,930]},
-  {label:'20 Minutes',     times:[960,1080,1200,1230]},
+// ── i18n ─────────────────────────────────────────────────────────────────────
+let currentLang = 'en';
+function t(key){
+  const tr=(window.TRANSLATIONS||{})[currentLang]||{};
+  const en=(window.TRANSLATIONS||{}).en||{};
+  return tr[key]!==undefined?tr[key]:(en[key]!==undefined?en[key]:key);
+}
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent=t(el.dataset.i18n); });
+  document.getElementById('btnAddRow').textContent      = t('btn_add_row');
+  document.getElementById('btnSave').textContent        = t('btn_save');
+  document.getElementById('btnClearActuals').textContent= t('btn_clear_actuals');
+  document.getElementById('btnClearList').textContent   = t('btn_clear_list');
+  document.getElementById('th_num').textContent         = t('col_num');
+  document.getElementById('th_name').textContent        = t('col_name');
+  document.getElementById('th_preset').textContent      = t('col_preset');
+  document.getElementById('th_green').textContent       = t('col_green');
+  document.getElementById('th_amber').textContent       = t('col_amber');
+  document.getElementById('th_red').textContent         = t('col_red');
+  document.getElementById('th_flash').textContent       = t('col_flash');
+  document.getElementById('th_actual').textContent      = t('col_actual');
+  render();
+}
+
+// ── Preset definitions ────────────────────────────────────────────────────────
+const PRESET_KEYS = [
+  {key:'pre_none',         times:[0,0,0,0]},
+  {key:'pre_1min',         times:[0,0,60,600]},
+  {key:'pre_table_topics', times:[60,90,120,150]},
+  {key:'pre_evaluations',  times:[120,150,180,210]},
+  {key:'pre_icebreaker',   times:[240,300,360,390]},
+  {key:'pre_5_7min',       times:[300,360,420,450]},
+  {key:'pre_10min',        times:[480,540,600,630]},
+  {key:'pre_12min',        times:[600,660,720,750]},
+  {key:'pre_15min',        times:[780,840,900,930]},
+  {key:'pre_20min',        times:[960,1080,1200,1230]},
 ];
+
 let ws, speakers=[];
 
 function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
@@ -95,20 +122,29 @@ function parseMmSs(str){
 
 function connect(){
   ws=new WebSocket('ws://'+location.host+'/ws');
-  ws.onopen=()=>{document.getElementById('st').textContent='Connected';send({type:'get_speakers'});};
+  ws.onopen=()=>{
+    document.getElementById('st').textContent=t('st_connected');
+    send({type:'get_speakers'});
+  };
   ws.onmessage=e=>{const m=JSON.parse(e.data);
     if(m.type==='speakers'){
       speakers=m.speakers;
       while(speakers.length<10)speakers.push({name:'',preset:[0,0,0,0],actual:null});
       render();
     }
+    else if(m.type==='config'){
+      const lang=m.config&&m.config.language?m.config.language:'en';
+      if(lang!==currentLang){currentLang=lang;applyI18n();}
+    }
     else if(m.type==='state'&&m.elapsed>0&&!m.running&&m.speaker){
-      // Auto-fill actual when timer stops
       const s=speakers.find(x=>x.name===m.speaker);
       if(s&&s.actual==null){s.actual=Math.round(m.elapsed);render();}
     }
   };
-  ws.onclose=()=>{document.getElementById('st').textContent='Reconnecting…';setTimeout(connect,2000);};
+  ws.onclose=()=>{
+    document.getElementById('st').textContent=t('st_reconnecting');
+    setTimeout(connect,2000);
+  };
   ws.onerror=()=>ws.close();
 }
 
@@ -116,23 +152,24 @@ function render(){
   const tb=document.getElementById('tbody');
   tb.innerHTML='';
   speakers.forEach((s,i)=>{
-    const pi=PRESETS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(s.preset||[0,0,0,0]));
+    const preset=s.preset||[0,0,0,0];
+    const pi=PRESET_KEYS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(preset));
     const row=document.createElement('tr');
     row.innerHTML=`
       <td>${i+1}</td>
       <td><input type="text" value="${escHtml(s.name||'')}" onchange="speakers[${i}].name=this.value"></td>
       <td>
         <select class="preset-sel" onchange="applyPreset(${i},this.value)">
-          ${PRESETS.map((p,j)=>`<option value="${j}" ${pi===j?'selected':''}>${p.label}</option>`).join('')}
+          ${PRESET_KEYS.map((p,j)=>`<option value="${j}" ${pi===j?'selected':''}>${t(p.key)}</option>`).join('')}
         </select>
       </td>
-      <td><input type="text" class="time-input" value="${fmt(s.preset?.[0])}"
+      <td><input type="text" class="time-input" value="${fmt(preset[0])}"
           onchange="setTime(${i},0,this.value)"></td>
-      <td><input type="text" class="time-input" value="${fmt(s.preset?.[1])}"
+      <td><input type="text" class="time-input" value="${fmt(preset[1])}"
           onchange="setTime(${i},1,this.value)"></td>
-      <td><input type="text" class="time-input" value="${fmt(s.preset?.[2])}"
+      <td><input type="text" class="time-input" value="${fmt(preset[2])}"
           onchange="setTime(${i},2,this.value)"></td>
-      <td><input type="text" class="time-input" value="${fmt(s.preset?.[3])}"
+      <td><input type="text" class="time-input" value="${fmt(preset[3])}"
           onchange="setTime(${i},3,this.value)"></td>
       <td><span class="actual">${s.actual!=null?fmt(s.actual):''}</span></td>
       <td><button class="del-btn" onclick="delRow(${i})">✕</button></td>`;
@@ -140,10 +177,7 @@ function render(){
   });
 }
 
-function applyPreset(i,pi){
-  speakers[i].preset=[...PRESETS[+pi].times];
-  render();
-}
+function applyPreset(i,pi){speakers[i].preset=[...PRESET_KEYS[+pi].times];render();}
 function setTime(i,col,val){
   if(!speakers[i].preset)speakers[i].preset=[0,0,0,0];
   speakers[i].preset[col]=parseMmSs(val);
@@ -152,9 +186,12 @@ function addRow(){speakers.push({name:'',preset:[0,0,0,0],actual:null});render()
 function delRow(i){speakers.splice(i,1);render();}
 function saveSpeakers(){send({type:'save_speakers',speakers});}
 function clearActuals(){send({type:'clear_actuals'});speakers.forEach(s=>s.actual=null);render();}
-function clearAll(){if(confirm('Clear all speakers?')){speakers=[];render();send({type:'save_speakers',speakers});}}
+function clearAll(){
+  if(confirm(t('confirm_clear_all'))){speakers=[];render();send({type:'save_speakers',speakers});}
+}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+document.getElementById('st').textContent = t('st_connecting');
 connect();
 </script>
 </body>

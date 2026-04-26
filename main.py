@@ -1,5 +1,5 @@
 """
-Toast Timer – ESP32-S3-Matrix entry point.
+TimerCube – ESP32-S3-Matrix entry point.
 MicroPython asyncio: WiFi → HTTP+WS server → LED matrix loop.
 """
 
@@ -16,7 +16,7 @@ from web_server   import WebServer
 async def main():
     # Set a friendly hostname (visible in DHCP & some mDNS clients)
     try:
-        network.hostname('toasttimer')
+        network.hostname('timercube')
     except Exception:
         pass
 
@@ -25,7 +25,7 @@ async def main():
     matrix.set_brightness(config['timer']['brightness'])
     matrix.clear()
 
-    print('Toast Timer starting…')
+    print('TimerCube starting…')
 
     # Connect to WiFi (or start AP hotspot)
     ip, mode, _iface = await connect_wifi(config, matrix)

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Report – Toast Timer</title>
+<title>Report – TimerCube</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -42,84 +42,112 @@ tr:hover td{background:#111827}
 <body>
 <nav>
   <strong style="color:#e5e7eb">TimerCube</strong>
-  <a href="/">Timer</a>
-  <a href="/speakers.html">Speakers</a>
-  <a href="/report.html" class="active">Report</a>
-  <a href="/settings.html">Settings</a>
+  <a href="/" data-i18n="nav_timer">Timer</a>
+  <a href="/speakers.html" data-i18n="nav_speakers">Speakers</a>
+  <a href="/report.html" class="active" data-i18n="nav_report">Report</a>
+  <a href="/settings.html" data-i18n="nav_settings">Settings</a>
 </nav>
 <div class="container">
   <div class="toolbar">
-    <h2>Speech Timing Report</h2>
-    <button class="btn" onclick="loadData()">↻ Refresh</button>
-    <button class="btn" onclick="window.print()">Print</button>
+    <h2 id="h_report" data-i18n="h_report">Speech Timing Report</h2>
+    <button class="btn" id="btnRefresh" onclick="loadData()" data-i18n="btn_refresh">↻ Refresh</button>
+    <button class="btn" id="btnPrint"   onclick="window.print()" data-i18n="btn_print">Print</button>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th>#</th>
-        <th>Speaker</th>
-        <th>Green</th>
-        <th>Amber</th>
-        <th>Red</th>
-        <th>Flash</th>
-        <th>Actual</th>
-        <th>Status</th>
+        <th id="th_num">#</th>
+        <th id="th_speaker">Speaker</th>
+        <th id="th_green">Green</th>
+        <th id="th_amber">Amber</th>
+        <th id="th_red">Red</th>
+        <th id="th_flash">Flash</th>
+        <th id="th_actual">Actual</th>
+        <th id="th_status">Status</th>
       </tr>
     </thead>
     <tbody id="tbody">
-      <tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem">Loading…</td></tr>
+      <tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem" id="msgLoading">Loading…</td></tr>
     </tbody>
   </table>
 
   <div class="status" id="st"></div>
 </div>
 
+<script src="/translations.js"></script>
 <script>
-function fmt(s){if(s==null||s===''||s===undefined)return'—';s=Math.floor(+s);return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');}
+// ── i18n ─────────────────────────────────────────────────────────────────────
+let currentLang = 'en';
+function t(key){
+  const tr=(window.TRANSLATIONS||{})[currentLang]||{};
+  const en=(window.TRANSLATIONS||{}).en||{};
+  return tr[key]!==undefined?tr[key]:(en[key]!==undefined?en[key]:key);
+}
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent=t(el.dataset.i18n); });
+  document.getElementById('th_num').textContent     = t('col_num');
+  document.getElementById('th_speaker').textContent = t('col_speaker');
+  document.getElementById('th_green').textContent   = t('col_green');
+  document.getElementById('th_amber').textContent   = t('col_amber');
+  document.getElementById('th_red').textContent     = t('col_red');
+  document.getElementById('th_flash').textContent   = t('col_flash');
+  document.getElementById('th_actual').textContent  = t('col_actual');
+  document.getElementById('th_status').textContent  = t('col_status');
+}
 
-function badge(actual,t){
-  if(actual==null)return'<span class="badge b-none">Not timed</span>';
-  const s=+actual,g=t[0],a=t[1],r=t[2],f=t[3];
-  if(f&&s>=f)return'<span class="badge b-over">Over</span>';
-  if(r&&s>=r)return'<span class="badge b-red">Red</span>';
-  if(a&&s>=a)return'<span class="badge b-amber">Amber</span>';
-  if(g&&s>=g)return'<span class="badge b-green">Green</span>';
-  return'<span class="badge b-under">Under</span>';
+function fmt(s){if(s==null||s===''||s===undefined)return'\u2014';s=Math.floor(+s);return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');}
+
+function badge(actual, thr){
+  if(actual==null) return `<span class="badge b-none">${t('badge_not_timed')}</span>`;
+  const s=+actual,g=thr[0],a=thr[1],r=thr[2],f=thr[3];
+  if(f&&s>=f) return `<span class="badge b-over">${t('badge_over')}</span>`;
+  if(r&&s>=r) return `<span class="badge b-red">${t('badge_red')}</span>`;
+  if(a&&s>=a) return `<span class="badge b-amber">${t('badge_amber')}</span>`;
+  if(g&&s>=g) return `<span class="badge b-green">${t('badge_green')}</span>`;
+  return `<span class="badge b-under">${t('badge_under')}</span>`;
 }
 
 function render(speakers){
   const tb=document.getElementById('tbody');
   if(!speakers.length){
-    tb.innerHTML='<tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem">No speakers recorded yet.</td></tr>';
+    tb.innerHTML=`<tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem">${t('msg_no_speakers')}</td></tr>`;
     return;
   }
   tb.innerHTML=speakers.map((s,i)=>{
-    const t=s.preset||[0,0,0,0];
+    const thr=s.preset||[0,0,0,0];
     return`<tr>
       <td>${i+1}</td>
       <td class="name">${escHtml(s.name||'')}</td>
-      <td>${fmt(t[0])}</td>
-      <td>${fmt(t[1])}</td>
-      <td>${fmt(t[2])}</td>
-      <td>${fmt(t[3])}</td>
+      <td>${fmt(thr[0])}</td>
+      <td>${fmt(thr[1])}</td>
+      <td>${fmt(thr[2])}</td>
+      <td>${fmt(thr[3])}</td>
       <td>${fmt(s.actual)}</td>
-      <td>${badge(s.actual,t)}</td>
+      <td>${badge(s.actual,thr)}</td>
     </tr>`;
   }).join('');
 }
 
 function loadData(){
-  document.getElementById('st').textContent='Loading…';
+  document.getElementById('st').textContent=t('msg_loading');
   fetch('/api/speakers')
     .then(r=>r.json())
     .then(data=>{render(data);document.getElementById('st').textContent='';})
-    .catch(e=>{document.getElementById('st').textContent='Error loading data.';});
+    .catch(()=>{document.getElementById('st').textContent=t('msg_error');});
 }
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-loadData();
+// Fetch config for language, then load data
+fetch('/api/config')
+  .then(r=>r.json())
+  .then(cfg=>{
+    const lang=cfg.language||'en';
+    if(lang!==currentLang){currentLang=lang;applyI18n();}
+    loadData();
+  })
+  .catch(()=>loadData());
 </script>
 </body>
 </html>
