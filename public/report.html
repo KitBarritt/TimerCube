@@ -139,6 +139,28 @@ function loadData(){
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
+// Keep a WebSocket open so the server knows this page is active (prevents
+// the LED idle/IP animation from triggering during page visits).
+(function(){
+  let ws, retryTimer;
+  function connect(){
+    ws=new WebSocket('ws://'+location.host+'/ws');
+    ws.onmessage=function(e){
+      try{
+        const d=JSON.parse(e.data);
+        if(d.type==='config'){
+          const lang=(d.config||{}).language||'en';
+          if(lang!==currentLang){currentLang=lang;applyI18n();}
+        }
+      }catch(ex){}
+    };
+    ws.onclose=function(){retryTimer=setTimeout(connect,2000);};
+    ws.onerror=function(){ws.close();};
+  }
+  window.addEventListener('beforeunload',function(){clearTimeout(retryTimer);if(ws)ws.close();});
+  connect();
+})();
+
 // Fetch config for language, then load data
 fetch('/api/config')
   .then(r=>r.json())

@@ -167,19 +167,27 @@ class WebServer:
         """Update the LED matrix to reflect the current timer colour."""
         from led_matrix import GREEN, AMBER, RED, BLUE, WHITE
         flash_on = True
-        ip_seq        = []   # IP scroll: list of chars + None (blank) entries
-        ip_idx        = 0    # current position in ip_seq
-        ip_tick       = 0    # 0.5 s ticks at current position (2 ticks = 1 s)
-        last_ip       = ''   # detect IP/mode changes so sequence is rebuilt
-        last_mode     = ''
-        ip_brightness = 0.15 # ← adjust this (0.0–1.0) to set IP scroll brightness
+        ip_seq          = []   # IP scroll: list of chars + None (blank) entries
+        ip_idx          = 0    # current position in ip_seq
+        ip_tick         = 0    # 0.5 s ticks at current position (2 ticks = 1 s)
+        last_ip         = ''   # detect IP/mode changes so sequence is rebuilt
+        last_mode       = ''
+        ip_brightness   = 0.15 # ← adjust this (0.0–1.0) to set IP scroll brightness
+        no_client_ticks = 0    # ticks elapsed with no WS clients (debounce)
 
         while True:
             try:
                 state  = self.timer.get_state()
                 colour = state['colour']
 
-                if colour == 'off' and not state['running'] and not self._clients and self.mode in ('ap', 'client'):
+                if self._clients:
+                    no_client_ticks = 0
+                else:
+                    no_client_ticks += 1
+
+                # Only show IP after 10 ticks (5 s) with no clients, so brief
+                # page-navigation gaps don't trigger the animation.
+                if colour == 'off' and not state['running'] and no_client_ticks >= 10 and self.mode in ('ap', 'client'):
                     # Idle animation: mode prefix + IP address scroll, one char per second.
                     # AP:     A  P  <IP digits with : between octets>  <2 s blank>
                     # Client: I  P  -  <IP digits>  <2 s blank>
