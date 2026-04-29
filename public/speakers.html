@@ -70,6 +70,7 @@ select.preset-sel{padding:.3rem .4rem;background:#111827;border:1px solid #37415
 </div>
 
 <script src="/translations.js"></script>
+<script>if(!window.TRANSLATIONS&&!sessionStorage.getItem('_tReload')){sessionStorage.setItem('_tReload','1');location.reload();}else{sessionStorage.removeItem('_tReload');}</script>
 <script>
 // ── i18n ─────────────────────────────────────────────────────────────────────
 let currentLang = 'en';
@@ -79,6 +80,7 @@ function t(key){
   return tr[key]!==undefined?tr[key]:(en[key]!==undefined?en[key]:key);
 }
 function applyI18n(){
+  if(!window.TRANSLATIONS) return;
   document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent=t(el.dataset.i18n); });
   document.getElementById('btnAddRow').textContent      = t('btn_add_row');
   document.getElementById('btnSave').textContent        = t('btn_save');

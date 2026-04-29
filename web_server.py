@@ -95,7 +95,7 @@ async def _send_file(writer, path):
         'HTTP/1.1 200 OK\r\n'
         f'Content-Type: {_ctype(path)}\r\n'
         f'Content-Length: {size}\r\n'
-        'Cache-Control: max-age=60\r\n'
+        'Cache-Control: max-age=3600\r\n'
         'Connection: close\r\n\r\n'
     ).encode()
     writer.write(hdr)

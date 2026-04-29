@@ -184,7 +184,7 @@ window.TRANSLATIONS = {
     pre_none:              '—',
 
     // Settings — brightness
-    h_brightness:          'Luminosité de l'affichage',
+    h_brightness:          "Luminosité de l'affichage",
     lbl_brightness:        'Luminosité :',
 
     // Settings — WiFi
@@ -201,7 +201,7 @@ window.TRANSLATIONS = {
     btn_cancel:            'Annuler',
 
     // Settings — hotspot
-    h_hotspot:             'Hotspot (point d'accès de secours)',
+    h_hotspot:             "Hotspot (point d'accès de secours)",
     hint_open_network:     'Laisser le mot de passe vide pour un réseau ouvert.',
 
     // Settings — connection info
@@ -209,16 +209,16 @@ window.TRANSLATIONS = {
     lbl_mode:              'Mode',
     lbl_ip:                'Adresse IP',
     lbl_url:               'URL',
-    lbl_ap_ssid:           'SSID du point d'accès',
+    lbl_ap_ssid:           "SSID du point d'accès",
 
     // Settings — reboot / toasts
-    btn_reboot:            'Redémarrer l'appareil',
+    btn_reboot:            "Redémarrer l'appareil",
     wifi_saved:            'Enregistré. Reconnexion WiFi…',
-    wifi_save_failed:      'Échec de l'enregistrement : ',
+    wifi_save_failed:      "Échec de l'enregistrement : ",
     toast_saved:           'Paramètres enregistrés',
-    toast_failed:          'Échec de l'enregistrement',
+    toast_failed:          "Échec de l'enregistrement",
     msg_rebooting:         'Redémarrage…',
-    confirm_reboot:        'Redémarrer l'appareil ?',
+    confirm_reboot:        "Redémarrer l'appareil ?",
 
     // Settings — WiFi scan
     h_available:           'Réseaux disponibles',
