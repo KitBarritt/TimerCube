@@ -320,6 +320,15 @@ class WebServer:
         finally:
             self._clients.discard(writer)
 
+    async def _broadcast(self, text):
+        dead = set()
+        for w in list(self._clients):
+            try:
+                await _ws_send(w, text)
+            except Exception:
+                dead.add(w)
+        self._clients -= dead
+
     async def _handle_ws_msg(self, msg, writer):
         t = msg.get('type')
 
@@ -380,6 +389,61 @@ class WebServer:
             await asyncio.sleep(0.8)
             import machine
             machine.reset()
+        elif t == 'check_update':
+            asyncio.create_task(self._check_update_task(writer))
+        elif t == 'do_update':
+            asyncio.create_task(self._do_update_task())
+
+    # ── OTA tasks ──────────────────────────────────────────────────────────
+
+    async def _check_update_task(self, writer):
+        try:
+            from version import VERSION, GITHUB_REPO, GITHUB_BRANCH
+            import ota_updater
+            remote, is_newer = ota_updater.is_update_available(GITHUB_REPO, GITHUB_BRANCH)
+            await _ws_send(writer, json.dumps({
+                'type': 'update_status',
+                'current': VERSION,
+                'remote': remote,
+                'is_newer': is_newer,
+            }))
+        except Exception as e:
+            await _ws_send(writer, json.dumps({'type': 'ota_error', 'message': str(e)}))
+
+    async def _do_update_task(self):
+        async def progress(**kwargs):
+            kwargs['type'] = 'ota_progress'
+            await self._broadcast(json.dumps(kwargs))
+            await asyncio.sleep(0)   # yield so WebSocket frame is sent
+
+        downloaded = []
+        try:
+            from version import GITHUB_REPO, GITHUB_BRANCH
+            import ota_updater
+
+            await progress(phase='fetch_manifest', message='Fetching file list…')
+            files = ota_updater.fetch_manifest(GITHUB_REPO, GITHUB_BRANCH)
+            total = len(files)
+
+            for i, rel_path in enumerate(files):
+                await progress(phase='download', file=rel_path, n=i + 1, total=total)
+                dev_path = ota_updater.download_file(GITHUB_REPO, GITHUB_BRANCH, rel_path)
+                downloaded.append(dev_path)
+
+            await progress(phase='install', message='Installing update…')
+            backed_up = ota_updater.install_files(downloaded)
+
+            await progress(phase='cleanup', message='Cleaning up…')
+            ota_updater.cleanup_backups(backed_up)
+
+            await progress(phase='done', message='Update complete. Rebooting…')
+            await asyncio.sleep(2)
+            import machine
+            machine.reset()
+
+        except Exception as e:
+            ota_updater.abort_download(downloaded)
+            await self._broadcast(json.dumps({'type': 'ota_error', 'message': str(e)}))
 
     # ── HTTP ───────────────────────────────────────────────────────────────
 
@@ -388,6 +452,11 @@ class WebServer:
         path = path.split('?')[0]
 
         # ── REST API ───────────────────────────────────────────────────────
+
+        if path == '/api/version':
+            from version import VERSION, VERSION_DATE
+            await _send_json(writer, {'version': VERSION, 'date': VERSION_DATE})
+            return
 
         if path == '/api/info':
             await _send_json(writer, {

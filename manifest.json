@@ -1,0 +1,19 @@
+{
+  "files": [
+    "main.py",
+    "web_server.py",
+    "timer_state.py",
+    "config.py",
+    "wifi_manager.py",
+    "led_matrix.py",
+    "ddns.py",
+    "ota_updater.py",
+    "version.py",
+    "public/index.html",
+    "public/settings.html",
+    "public/speakers.html",
+    "public/report.html",
+    "public/translations.js",
+    "manifest.json"
+  ]
+}

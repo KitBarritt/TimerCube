@@ -48,6 +48,14 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
   border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.3rem}
 .scan-ssid{flex:1;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .scan-rssi{font-size:.75rem;color:#6b7280;white-space:nowrap}
+.progress-log{font-size:.75rem;color:#9ca3af;font-family:monospace;white-space:pre-wrap;
+  background:#111827;border:1px solid #1f2937;border-radius:.375rem;padding:.5rem;
+  max-height:160px;overflow-y:auto;margin-top:.5rem}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+  z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-box{background:#1f2937;border:1px solid #374151;border-radius:.75rem;
+  padding:1.5rem;max-width:340px;margin:1rem}
 </style>
 </head>
 <body>
@@ -127,13 +135,44 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
     <div class="info-row"><span data-i18n="lbl_ap_ssid">AP SSID</span><span class="info-val" id="infoAp">—</span></div>
   </div>
 
+  <!-- Firmware Update -->
+  <div class="card">
+    <h2>Firmware Update</h2>
+    <p style="font-size:.8rem;color:#9ca3af;margin-bottom:.75rem">
+      Current version: <strong id="currentVersion" style="color:#e5e7eb">…</strong>
+    </p>
+    <button class="btn btn-secondary" id="btnCheckUpdate" onclick="checkUpdate()">Check for Update</button>
+    <div id="updateStatus" style="margin-top:.75rem;font-size:.85rem;color:#9ca3af"></div>
+    <div id="updateProgress" style="display:none">
+      <div class="progress-log" id="progressLog"></div>
+    </div>
+  </div>
+
   <!-- Reboot -->
   <div style="display:flex;gap:.75rem;margin-bottom:1.25rem">
     <button class="btn btn-warn" id="btnReboot" onclick="doReboot()" data-i18n="btn_reboot">Reboot Device</button>
   </div>
 
   <div class="status" id="st">Connecting…</div>
+  <div style="text-align:center;padding:1.5rem 0 .5rem;color:#4b5563;font-size:.7rem" id="versionFooter">…</div>
 </div>
+
+<!-- OTA warning modal -->
+<div class="modal-overlay" id="otaModal">
+  <div class="modal-box">
+    <h3 style="color:#fde68a;margin-bottom:.75rem;font-size:1rem">Before You Update</h3>
+    <p style="font-size:.85rem;color:#d1d5db;margin-bottom:1rem;line-height:1.5">
+      Ensure the device remains connected to power for the entire update.
+      Do <strong>not</strong> unplug or restart it — the device will reboot
+      automatically when finished. The update may take 1–2 minutes.
+    </p>
+    <div style="display:flex;gap:.75rem">
+      <button class="btn btn-warn" onclick="confirmUpdate()">Update Now</button>
+      <button class="btn btn-secondary" onclick="closeOtaModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="/translations.js"></script>
@@ -203,6 +242,9 @@ function connect(){
       showToast(ok ? t('toast_saved') : t('toast_failed'), ok);
     }
     else if (m.type === 'rebooting') { showToast(t('msg_rebooting')); }
+    else if (m.type === 'update_status') { onUpdateStatus(m); }
+    else if (m.type === 'ota_progress') { onOtaProgress(m); }
+    else if (m.type === 'ota_error')    { onOtaError(m.message); }
   };
   ws.onclose = () => {
     document.getElementById('st').textContent = t('st_reconnecting');
@@ -382,6 +424,88 @@ function doReboot(){
   if (confirm(t('confirm_reboot'))) send({type:'reboot'});
 }
 
+// ── Firmware update ───────────────────────────────────────────────────────────
+let _pendingRemote = null;
+
+function loadVersion(){
+  fetch('/api/version')
+    .then(r => r.json())
+    .then(v => {
+      const label = 'V' + v.version + ' · ' + v.date;
+      document.getElementById('currentVersion').textContent = label;
+      document.getElementById('versionFooter').textContent  = label;
+    })
+    .catch(() => {});
+}
+
+function checkUpdate(){
+  const btn = document.getElementById('btnCheckUpdate');
+  btn.disabled = true;
+  document.getElementById('updateStatus').textContent = 'Checking…';
+  document.getElementById('updateStatus').style.color = '#9ca3af';
+  _pendingRemote = null;
+  send({type:'check_update'});
+}
+
+function onUpdateStatus(m){
+  document.getElementById('btnCheckUpdate').disabled = false;
+  const div = document.getElementById('updateStatus');
+  if (m.is_newer) {
+    _pendingRemote = m.remote;
+    div.style.color = '#fde68a';
+    div.innerHTML =
+      'Version <strong>V' + escHtml(m.remote) + '</strong> is available. ' +
+      '<button class="btn btn-primary btn-sm" onclick="showOtaModal()">Update…</button>';
+  } else {
+    div.style.color = '#6b7280';
+    div.textContent = 'Already up to date (V' + m.current + ').';
+  }
+}
+
+function showOtaModal(){
+  document.getElementById('otaModal').classList.add('open');
+}
+function closeOtaModal(){
+  document.getElementById('otaModal').classList.remove('open');
+}
+
+function confirmUpdate(){
+  closeOtaModal();
+  document.getElementById('btnCheckUpdate').disabled = true;
+  document.getElementById('updateStatus').textContent = '';
+  const prog = document.getElementById('updateProgress');
+  prog.style.display = 'block';
+  document.getElementById('progressLog').textContent = '';
+  send({type:'do_update'});
+}
+
+function onOtaProgress(m){
+  const log = document.getElementById('progressLog');
+  let line = '';
+  if (m.phase === 'fetch_manifest') {
+    line = 'Fetching file list…';
+  } else if (m.phase === 'download') {
+    line = '[' + m.n + '/' + m.total + '] ' + m.file;
+  } else if (m.phase === 'install') {
+    line = 'Installing…';
+  } else if (m.phase === 'cleanup') {
+    line = 'Cleaning up…';
+  } else if (m.phase === 'done') {
+    line = 'Done! Rebooting…';
+  } else {
+    line = m.message || m.phase;
+  }
+  log.textContent += line + '\n';
+  log.scrollTop = log.scrollHeight;
+}
+
+function onOtaError(msg){
+  document.getElementById('btnCheckUpdate').disabled = false;
+  const div = document.getElementById('updateStatus');
+  div.style.color = '#f87171';
+  div.textContent = 'Error: ' + msg;
+}
+
 function escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -389,6 +513,7 @@ function escHtml(s){
 // Init
 document.getElementById('st').textContent = t('st_connecting');
 connect();
+loadVersion();
 </script>
 </body>
 </html>
