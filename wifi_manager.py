@@ -60,54 +60,67 @@ async def _run_dns(ip):
 
 # ── WiFi connection ────────────────────────────────────────────────────────
 
-async def connect_wifi(config, matrix):
+async def try_networks(config, matrix):
     """
     Try each saved network in priority order.
-    Returns (ip_str, mode_str, iface) where mode is 'client' or 'ap'.
+    Returns (ip_str, iface) on success, or None if all fail.
     """
     networks = sorted(
         config['wifi'].get('networks', []),
         key=lambda n: n.get('priority', 99),
     )
 
-    if networks:
-        sta = network.WLAN(network.STA_IF)
-        sta.active(True)
-        print('WiFi: scanning for', len(networks), 'saved network(s)')
+    if not networks:
+        return None
 
-        for idx, net in enumerate(networks):
-            ssid = net.get('ssid', '')
-            pwd  = net.get('password', '')
-            n    = str(min(idx + 1, 9))
-            matrix.show_two_chars('S', n, BLUE, BLUE)
-            print(f'  Trying "{ssid}" …')
-            try:
-                sta.connect(ssid, pwd)
-            except Exception as e:
-                print('  connect() error:', e)
-                continue
+    sta = network.WLAN(network.STA_IF)
+    sta.active(True)
+    print('WiFi: scanning for', len(networks), 'saved network(s)')
 
-            # Poll up to 15 s
-            for _ in range(30):
-                await asyncio.sleep(0.5)
-                if sta.isconnected():
-                    ip = sta.ifconfig()[0]
-                    print(f'  Connected! IP={ip}')
-                    matrix.show_two_chars('C', n, GREEN, GREEN)
-                    await asyncio.sleep(2)
-                    return ip, 'client', sta
+    for idx, net in enumerate(networks):
+        ssid = net.get('ssid', '')
+        pwd  = net.get('password', '')
+        n    = str(min(idx + 1, 9))
+        matrix.show_two_chars('S', n, BLUE, BLUE)
+        print('  Trying "%s" …' % ssid)
+        try:
+            sta.connect(ssid, pwd)
+        except Exception as e:
+            print('  connect() error:', e)
+            continue
 
-            sta.disconnect()
+        # Poll up to 15 s
+        for _ in range(30):
             await asyncio.sleep(0.5)
-            print('  Timed out.')
+            if sta.isconnected():
+                ip = sta.ifconfig()[0]
+                print('  Connected! IP=%s' % ip)
+                matrix.show_two_chars('C', n, GREEN, GREEN)
+                await asyncio.sleep(2)
+                return ip, sta
 
-        sta.active(False)
+        sta.disconnect()
+        await asyncio.sleep(0.5)
+        print('  Timed out.')
 
-    # ── AP fallback ────────────────────────────────────────────────────────
-    return await _start_ap(config, matrix)
+    sta.active(False)
+    return None
 
 
-async def _start_ap(config, matrix):
+async def connect_wifi(config, matrix):
+    """
+    Try saved networks then fall back to AP.
+    Returns (ip_str, mode_str, iface) — kept for web_server._reconnect_wifi.
+    """
+    result = await try_networks(config, matrix)
+    if result:
+        ip, iface = result
+        return ip, 'client', iface
+    ip, iface = await start_ap(config, matrix)
+    return ip, 'ap', iface
+
+
+async def start_ap(config, matrix):
     ap_ssid = config['wifi'].get('ap_ssid', 'TimerCube')
     ap_pass = config['wifi'].get('ap_password', 'toastmaster')
 
@@ -130,10 +143,10 @@ async def _start_ap(config, matrix):
         await asyncio.sleep(0.2)
 
     ip = ap.ifconfig()[0]
-    print(f'AP mode: SSID={ap_ssid}  IP={ip}')
+    print('AP mode: SSID=%s  IP=%s' % (ap_ssid, ip))
     matrix.show_char('A', AMBER)
 
     # Start captive-portal DNS in background
     asyncio.create_task(_run_dns(ip))
 
-    return ip, 'ap', ap
+    return ip, ap

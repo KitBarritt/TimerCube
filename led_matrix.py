@@ -45,6 +45,7 @@ _FONT = {
     '-': [0, 0, 7, 0, 0],   # middle horizontal bar
     ':': [0, 2, 0, 2, 0],   # two centre dots
     '?': [7, 1, 2, 0, 2],
+    'U': [5, 5, 5, 5, 7],
 }
 
 
