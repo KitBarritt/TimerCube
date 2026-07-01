@@ -384,6 +384,10 @@ class WebServer:
             # Only reconnect WiFi when WiFi settings actually changed
             if wifi_changed:
                 asyncio.create_task(self._reconnect_wifi())
+        elif t == 'save_device_id':
+            from config import save_device_id
+            ok = save_device_id(msg.get('id', ''))
+            await _ws_send(writer, json.dumps({'type': 'device_id_saved', 'ok': ok}))
         elif t == 'reboot':
             await _ws_send(writer, json.dumps({'type': 'rebooting'}))
             await asyncio.sleep(0.8)
@@ -456,6 +460,12 @@ class WebServer:
         if path == '/api/version':
             from version import VERSION, VERSION_DATE
             await _send_json(writer, {'version': VERSION, 'date': VERSION_DATE})
+            return
+
+        if path == '/api/device-id':
+            from config import read_device_id
+            if method == 'GET':
+                await _send_json(writer, {'id': read_device_id()})
             return
 
         if path == '/api/info':

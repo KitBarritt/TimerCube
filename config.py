@@ -37,3 +37,37 @@ def load_config():
 def save_config(config):
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f)
+
+
+_ID_FILE = 'id.py'
+
+
+def read_device_id():
+    try:
+        with open(_ID_FILE) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('DEVICE_ID'):
+                    val = line.split('=', 1)[1].strip()
+                    return val.strip("'\"")
+    except Exception:
+        pass
+    return ''
+
+
+def save_device_id(new_id):
+    try:
+        # Store as a bare integer when the value is purely numeric
+        try:
+            as_int = int(new_id)
+            if str(as_int) == str(new_id).strip() and as_int > 0:
+                line = 'DEVICE_ID = %d\n' % as_int
+            else:
+                line = 'DEVICE_ID = %s\n' % json.dumps(str(new_id))
+        except (ValueError, TypeError):
+            line = 'DEVICE_ID = %s\n' % json.dumps(str(new_id))
+        with open(_ID_FILE, 'w') as f:
+            f.write(line)
+        return True
+    except Exception:
+        return False
