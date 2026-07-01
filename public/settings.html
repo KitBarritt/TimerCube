@@ -44,6 +44,9 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
   transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}
 .status{font-size:.75rem;color:#6b7280;text-align:center;padding:.5rem}
+.edit-id-btn{background:none;border:none;cursor:pointer;color:transparent;
+  font-size:.85rem;padding:.1rem .3rem;line-height:1;transition:color .2s}
+.edit-id-btn:hover{color:#6b7280}
 .scan-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;background:#111827;
   border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.3rem}
 .scan-ssid{flex:1;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -133,6 +136,28 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
     <div class="info-row"><span data-i18n="lbl_ip">IP address</span><span class="info-val" id="infoIp">—</span></div>
     <div class="info-row"><span data-i18n="lbl_url">URL</span><span class="info-val" id="infoUrl">—</span></div>
     <div class="info-row"><span data-i18n="lbl_ap_ssid">AP SSID</span><span class="info-val" id="infoAp">—</span></div>
+    <div class="info-row">
+      <span>Device ID</span>
+      <span style="display:flex;align-items:center;gap:.4rem">
+        <span class="info-val" id="infoDeviceId">—</span>
+        <button class="edit-id-btn" onclick="openIdEdit()" title="Edit Device ID">✎</button>
+      </span>
+    </div>
+  </div>
+
+  <!-- Device ID edit panel (hidden until pencil clicked) -->
+  <div id="deviceIdPanel" class="card" style="display:none">
+    <div style="background:#78350f;border:1px solid #92400e;border-radius:.375rem;
+                padding:.6rem .75rem;margin-bottom:.75rem;font-size:.85rem;color:#fde68a;line-height:1.5">
+      ⚠ Changing the Device ID may prevent this unit from functioning correctly.
+      Only change this during initial device configuration.
+    </div>
+    <label>Device ID</label>
+    <div style="display:flex;gap:.5rem;margin-top:.3rem">
+      <input type="text" id="deviceIdInput" style="flex:1" maxlength="32">
+      <button class="btn btn-warn" onclick="saveDeviceId()">Save</button>
+      <button class="btn btn-secondary" onclick="closeIdEdit()">Cancel</button>
+    </div>
   </div>
 
   <!-- Firmware Update -->
@@ -231,6 +256,9 @@ function connect(){
     document.getElementById('st').textContent = t('st_connected');
     send({type:'get_config'});
     fetch('/api/info').then(r=>r.json()).then(applyInfo).catch(()=>{});
+    fetch('/api/device-id').then(r=>r.json()).then(d=>{
+      document.getElementById('infoDeviceId').textContent = d.id||'—';
+    }).catch(()=>{});
   };
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
@@ -240,6 +268,10 @@ function connect(){
       document.getElementById('wifiResult').textContent =
         ok ? t('wifi_saved') : t('wifi_save_failed') + (m.error||'');
       showToast(ok ? t('toast_saved') : t('toast_failed'), ok);
+    }
+    else if (m.type === 'device_id_saved') {
+      if (m.ok) { closeIdEdit(); showToast('Device ID saved'); }
+      else showToast('Failed to save Device ID', false);
     }
     else if (m.type === 'rebooting') { showToast(t('msg_rebooting')); }
     else if (m.type === 'update_status') { onUpdateStatus(m); }
@@ -258,6 +290,19 @@ function applyInfo(info){
   document.getElementById('infoIp').textContent   = info.ip||'—';
   document.getElementById('infoUrl').textContent  = info.url||'—';
   document.getElementById('infoAp').textContent   = info.ap_ssid||'—';
+}
+
+function openIdEdit(){
+  const cur = document.getElementById('infoDeviceId').textContent;
+  document.getElementById('deviceIdInput').value = cur === '—' ? '' : cur;
+  document.getElementById('deviceIdPanel').style.display = '';
+}
+function closeIdEdit(){
+  document.getElementById('deviceIdPanel').style.display = 'none';
+}
+function saveDeviceId(){
+  const id = document.getElementById('deviceIdInput').value.trim();
+  send({type:'save_device_id', id});
 }
 
 function applyConfig(){
