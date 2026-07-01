@@ -172,23 +172,27 @@ class BleServer:
         flash_on = True
         while True:
             try:
-                state  = self.timer.get_state()
-                colour = state['colour']
-                if colour == 'off':
-                    if state['running']:
-                        self.matrix.dot(BLUE)
-                    else:
-                        self.matrix.clear()
-                elif colour == 'green':
-                    self.matrix.fill(GREEN)
-                elif colour == 'amber':
-                    self.matrix.fill(AMBER)
-                elif colour == 'red':
-                    self.matrix.fill(RED)
-                elif colour == 'flash':
-                    flash_on = not flash_on
-                    self.timer.flash_on = flash_on
-                    self.matrix.fill(RED) if flash_on else self.matrix.clear()
+                if self._conn_handle is None:
+                    # Advertising — hold 'B' so the user knows the mode
+                    self.matrix.show_char('B', BLUE, rotation=90)
+                else:
+                    state  = self.timer.get_state()
+                    colour = state['colour']
+                    if colour == 'off':
+                        if state['running']:
+                            self.matrix.dot(BLUE)
+                        else:
+                            self.matrix.clear()
+                    elif colour == 'green':
+                        self.matrix.fill(GREEN)
+                    elif colour == 'amber':
+                        self.matrix.fill(AMBER)
+                    elif colour == 'red':
+                        self.matrix.fill(RED)
+                    elif colour == 'flash':
+                        flash_on = not flash_on
+                        self.timer.flash_on = flash_on
+                        self.matrix.fill(RED) if flash_on else self.matrix.clear()
             except Exception as e:
                 print('Matrix loop error:', e)
             await asyncio.sleep(0.5)
