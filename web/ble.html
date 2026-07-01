@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TimerCube BLE</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
+
+/* ── Connect screen ─────────────────────────────────────────── */
+#connectScreen{display:flex;flex-direction:column;align-items:center;
+  justify-content:center;min-height:100vh;gap:1.5rem;padding:2rem;text-align:center}
+#connectScreen h1{font-size:1.8rem;font-weight:700;letter-spacing:.05em}
+#connectDot{width:12px;height:12px;border-radius:50%;background:#555;
+  display:inline-block;margin-right:.5rem;transition:background .3s}
+#connectDot.waiting{background:#f5a623}
+#connectDot.ready{background:#1db954}
+#connectDot.error{background:#dc2626}
+#connectStatus{font-size:.9rem;color:#9ca3af;display:flex;align-items:center;
+  justify-content:center;gap:.4rem}
+#btnConnect{padding:.75rem 2rem;background:#1db954;color:#fff;border:none;
+  border-radius:.5rem;font-size:1rem;font-weight:600;cursor:pointer;
+  transition:filter .15s}
+#btnConnect:hover{filter:brightness(1.1)}
+#btnConnect:disabled{opacity:.4;cursor:not-allowed}
+#noBLE{color:#dc2626;font-size:.85rem;max-width:340px;line-height:1.6}
+#connectNote{color:#6b7280;font-size:.8rem;max-width:360px;line-height:1.6}
+
+/* ── App shell ──────────────────────────────────────────────── */
+#app{display:none;flex-direction:column;min-height:100vh}
+nav{display:flex;align-items:center;gap:1rem;padding:.6rem 1rem;
+  border-bottom:1px solid #1f2937;flex-wrap:wrap}
+nav strong{color:#e5e7eb;margin-right:.5rem}
+.nav-tab{color:#9ca3af;text-decoration:none;font-size:.875rem;cursor:pointer;
+  background:none;border:none;padding:.25rem 0}
+.nav-tab:hover,.nav-tab.active{color:#e5e7eb}
+#btnDisconnect{margin-left:auto;padding:.3rem .75rem;background:#374151;color:#9ca3af;
+  border:none;border-radius:.375rem;font-size:.75rem;cursor:pointer}
+#btnDisconnect:hover{color:#e5e7eb}
+
+/* ── Shared layout ──────────────────────────────────────────── */
+.tab{display:none;flex:1}
+.tab.active{display:block}
+.container{max-width:640px;margin:0 auto;padding:1.5rem 1rem}
+.container-wide{max-width:800px;margin:0 auto;padding:1.5rem 1rem}
+.sec-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;
+  color:#6b7280;margin-bottom:.4rem}
+.card{background:#1f2937;border:1px solid #374151;border-radius:.625rem;
+  padding:1rem;margin-bottom:1.25rem}
+.btn{padding:.45rem .875rem;border:none;border-radius:.375rem;font-size:.85rem;
+  cursor:pointer;font-weight:500;transition:filter .15s}
+.btn:active{filter:brightness(.75)}
+.btn-primary{background:#1db954;color:#fff}
+.btn-secondary{background:#374151;color:#e5e7eb}
+.btn-danger{background:#7f1d1d;color:#fca5a5}
+.btn-warn{background:#92400e;color:#fde68a}
+.btn-sm{padding:.3rem .6rem;font-size:.75rem}
+label{font-size:.8rem;color:#9ca3af;display:block;margin-bottom:.3rem}
+input[type=text],input[type=password]{width:100%;padding:.45rem .6rem;
+  background:#111827;border:1px solid #374151;color:#e5e7eb;
+  border-radius:.375rem;font-size:.9rem}
+input[type=range]{width:100%;accent-color:#1db954}
+select.field{width:100%;padding:.45rem .6rem;background:#111827;
+  border:1px solid #374151;color:#e5e7eb;border-radius:.375rem;font-size:.9rem}
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);
+  background:#1db954;color:#fff;padding:.5rem 1.25rem;border-radius:2rem;
+  font-size:.875rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:200}
+.toast.show{opacity:1}
+
+/* ── Timer tab ──────────────────────────────────────────────── */
+.display{font-family:'Roboto',Arial,monospace;font-size:5.5rem;font-weight:bold;
+  text-align:center;letter-spacing:.05em;margin:.5rem 0;transition:color .3s}
+.display.off{color:#4b5563}
+.display.running{color:#e5e7eb}
+.display.green{color:#1db954}
+.display.amber{color:#ff8c1a}
+.display.red{color:#ff3b30}
+.display.flash{color:#ff3b30}
+.display.flash.dim{color:#3f0e0b}
+.thresholds{text-align:center;color:#6b7280;font-size:.85rem;margin-bottom:1.25rem;min-height:1.2em}
+.btn-row{display:flex;gap:.625rem;margin-bottom:1.25rem}
+.btn-full{flex:1;padding:.75rem .5rem;font-size:1rem;font-weight:500}
+.btn-start{background:#1db954;color:#fff}
+.btn-stop{background:#374151;color:#e5e7eb}
+.btn-reset{background:#7f1d1d;color:#fca5a5}
+.presets{display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem;margin-bottom:1.25rem}
+.preset{padding:.45rem .5rem;background:#1f2937;border:1px solid #374151;
+  border-radius:.375rem;color:#9ca3af;font-size:.8rem;cursor:pointer;
+  text-align:center;transition:all .15s}
+.preset.active,.preset:hover{background:#1e3a2f;border-color:#1db954;color:#1db954}
+select.spk-sel{width:100%;padding:.5rem;background:#1f2937;border:1px solid #374151;
+  color:#e5e7eb;border-radius:.375rem;font-size:.9rem;margin-bottom:1.25rem}
+.lights{display:flex;gap:.4rem;margin-bottom:1.25rem}
+.light{flex:1;padding:.45rem 0;border:1px solid #374151;border-radius:.375rem;
+  font-size:.75rem;cursor:pointer;background:#1f2937;color:#9ca3af;transition:all .15s}
+.light:active{filter:brightness(.75)}
+.l-off:hover{border-color:#9ca3af;color:#e5e7eb}
+.l-green{border-color:#1db954;color:#1db954}
+.l-amber{border-color:#ff8c1a;color:#ff8c1a}
+.l-red{border-color:#ff3b30;color:#ff3b30}
+.l-flash{border-color:#ff3b30;color:#ff3b30}
+
+/* ── Speakers tab ───────────────────────────────────────────── */
+.toolbar{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:#1f2937;color:#9ca3af;font-weight:500;padding:.5rem .6rem;
+  text-align:left;border-bottom:2px solid #374151}
+td{padding:.45rem .6rem;border-bottom:1px solid #1f2937;vertical-align:middle}
+tr:hover td{background:#111827}
+input[type=text].ti{width:100%;padding:.3rem .4rem;background:#111827;
+  border:1px solid #374151;color:#e5e7eb;border-radius:.25rem;font-size:.85rem}
+input[type=text].ti-time{width:4.5rem;text-align:center;font-family:monospace}
+select.ps{padding:.3rem .4rem;background:#111827;border:1px solid #374151;
+  color:#e5e7eb;border-radius:.25rem;font-size:.8rem;width:100%}
+.actual-val{color:#1db954;font-family:monospace;font-size:.85rem}
+.del-btn{background:none;border:none;color:#6b7280;cursor:pointer;
+  font-size:1rem;padding:.2rem .4rem}
+.del-btn:hover{color:#ff3b30}
+
+/* ── Report tab ─────────────────────────────────────────────── */
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:1rem;
+  font-size:.75rem;font-weight:600}
+.b-green{background:#14532d;color:#4ade80}
+.b-amber{background:#78350f;color:#fbbf24}
+.b-red{background:#450a0a;color:#fca5a5}
+.b-over{background:#3b0764;color:#e879f9}
+.b-under{background:#1e3a5f;color:#60a5fa}
+.b-none{background:#1f2937;color:#6b7280}
+@media print{
+  nav,#btnDisconnect,.toolbar,.sec-label{display:none!important}
+  body{background:#fff;color:#000}
+  .card{border:none;background:none;padding:0}
+  th{background:#f3f4f6;color:#374151}
+  td{border-bottom:1px solid #e5e7eb}
+  .badge{border:1px solid currentColor}
+}
+
+/* ── Settings tab ───────────────────────────────────────────── */
+h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
+.row{display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem}
+.row label{margin:0;flex:1}
+.net-row{display:flex;align-items:center;gap:.5rem;padding:.5rem;
+  background:#111827;border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.4rem}
+.net-row .ssid{flex:1;font-size:.875rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.net-row .pri{font-size:.75rem;color:#6b7280;width:1.5rem;text-align:center}
+.edit-panel{display:none;background:#0f1115;border:1px solid #374151;
+  border-radius:.375rem;padding:.75rem;margin-bottom:.4rem}
+.edit-panel.open{display:block}
+.edit-panel input{margin-bottom:.4rem}
+.info-row{display:flex;justify-content:space-between;align-items:center;
+  padding:.3rem 0;border-bottom:1px solid #1f2937;font-size:.85rem}
+.info-row:last-child{border:none}
+.info-val{color:#9ca3af;font-family:monospace;font-size:.8rem}
+.scan-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;
+  background:#111827;border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.3rem}
+.scan-ssid{flex:1;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scan-rssi{font-size:.75rem;color:#6b7280;white-space:nowrap}
+.status-note{font-size:.75rem;color:#6b7280;padding:.4rem 0}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ CONNECT SCREEN ═══════════════════════ -->
+<div id="connectScreen">
+  <h1>TimerCube</h1>
+  <div id="connectStatus">
+    <span id="connectDot"></span>
+    <span id="connectText">Not connected</span>
+  </div>
+  <div id="noBLE" style="display:none">
+    Web Bluetooth not supported — use Chrome or Edge on Android or desktop.
+  </div>
+  <button id="btnConnect" onclick="connectClick()">Connect via Bluetooth</button>
+  <p id="connectNote">
+    Orient the TimerCube with its right side down to activate Bluetooth mode,
+    then click Connect and select <strong>TimerCube</strong> from the list.
+  </p>
+</div>
+
+<!-- ═══════════════════════ APP ══════════════════════════════════ -->
+<div id="app">
+  <nav>
+    <strong>TimerCube</strong>
+    <button class="nav-tab active" onclick="showTab('timer')"   id="nt-timer"   >Timer</button>
+    <button class="nav-tab"        onclick="showTab('speakers')" id="nt-speakers">Speakers</button>
+    <button class="nav-tab"        onclick="showTab('report')"   id="nt-report"  >Report</button>
+    <button class="nav-tab"        onclick="showTab('settings')" id="nt-settings">Settings</button>
+    <button id="btnDisconnect" onclick="disconnectClick()">Disconnect</button>
+  </nav>
+
+  <!-- ── Timer ── -->
+  <div class="tab active" id="tab-timer">
+  <div class="container">
+    <div class="display off" id="disp">0:00</div>
+    <div class="thresholds" id="thresh"></div>
+    <div class="btn-row">
+      <button class="btn btn-full btn-start" id="btnStart" onclick="send({type:'start'})">Start</button>
+      <button class="btn btn-full btn-stop"  onclick="send({type:'stop'})">Stop</button>
+      <button class="btn btn-full btn-reset" onclick="send({type:'reset'})">Reset</button>
+    </div>
+    <div class="sec-label" id="lbl-presets">Presets</div>
+    <div class="presets" id="presets"></div>
+    <div class="sec-label" id="lbl-speaker">Speaker</div>
+    <select class="spk-sel" id="spkSel" onchange="pickSpeaker(this.value)">
+      <option value="">— No speaker —</option>
+    </select>
+    <div class="sec-label" id="lbl-lights">Manual light</div>
+    <div class="lights">
+      <button class="light l-off"   onclick="send({type:'set_colour',colour:'off'})"  >Off</button>
+      <button class="light l-green" onclick="send({type:'set_colour',colour:'green'})">Green</button>
+      <button class="light l-amber" onclick="send({type:'set_colour',colour:'amber'})">Amber</button>
+      <button class="light l-red"   onclick="send({type:'set_colour',colour:'red'})"  >Red</button>
+      <button class="light l-flash" onclick="send({type:'set_colour',colour:'flash'})">Flash</button>
+    </div>
+  </div>
+  </div>
+
+  <!-- ── Speakers ── -->
+  <div class="tab" id="tab-speakers">
+  <div class="container-wide">
+    <div class="toolbar">
+      <button class="btn btn-primary"   onclick="spkAddRow()">+ Add Row</button>
+      <button class="btn btn-secondary" onclick="spkSave()">Save</button>
+      <button class="btn btn-secondary" onclick="spkClearActuals()">Clear Actuals</button>
+      <button class="btn btn-danger"    onclick="spkClearAll()">Clear List</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>#</th><th id="th-name">Name</th><th id="th-preset">Preset</th>
+        <th id="th-green">Green</th><th id="th-amber">Amber</th>
+        <th id="th-red">Red</th><th id="th-flash">Flash</th>
+        <th id="th-actual">Actual</th><th></th>
+      </tr></thead>
+      <tbody id="spkTbody"></tbody>
+    </table>
+  </div>
+  </div>
+
+  <!-- ── Report ── -->
+  <div class="tab" id="tab-report">
+  <div class="container-wide">
+    <div class="toolbar">
+      <h2 style="margin:0;margin-right:auto">Speech Timing Report</h2>
+      <button class="btn btn-secondary" onclick="buildReport()">↻ Refresh</button>
+      <button class="btn btn-secondary" onclick="window.print()">Print</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>#</th><th>Speaker</th><th>Green</th><th>Amber</th>
+        <th>Red</th><th>Flash</th><th>Actual</th><th>Status</th>
+      </tr></thead>
+      <tbody id="rptTbody"></tbody>
+    </table>
+  </div>
+  </div>
+
+  <!-- ── Settings ── -->
+  <div class="tab" id="tab-settings">
+  <div class="container">
+
+    <!-- Language -->
+    <div class="card">
+      <h2>Language</h2>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <select class="field" id="langSel" onchange="onLangChange(this.value)" style="flex:1">
+          <option value="en">English</option>
+          <option value="fr">Français</option>
+          <option value="de">Deutsch</option>
+          <option value="es">Español</option>
+        </select>
+        <button class="btn btn-primary" onclick="saveLang()">Save</button>
+      </div>
+    </div>
+
+    <!-- Brightness -->
+    <div class="card">
+      <h2>Display Brightness</h2>
+      <label>Brightness: <span id="brightVal">60</span>%</label>
+      <input type="range" id="brightSlider" min="0" max="100" value="60"
+        oninput="setBrightness(this.value)">
+    </div>
+
+    <!-- WiFi networks -->
+    <div class="card">
+      <h2>WiFi Networks
+        <button class="btn btn-secondary btn-sm" style="float:right" onclick="addNet()">+ Add</button>
+      </h2>
+      <div id="netList"></div>
+      <div style="display:flex;gap:.5rem;margin-top:.75rem">
+        <button class="btn btn-primary" onclick="saveWifi()">Save WiFi Config</button>
+      </div>
+      <div class="status-note" id="wifiResult"></div>
+    </div>
+
+    <!-- Available networks (scan) -->
+    <div class="card">
+      <h2>Available Networks
+        <button class="btn btn-secondary btn-sm" style="float:right"
+          id="btnScan" onclick="doScan()">Scan</button>
+      </h2>
+      <p style="font-size:.78rem;color:#6b7280;margin-bottom:.5rem">
+        The device will scan while staying in Bluetooth mode — it does not connect.
+      </p>
+      <div id="scanList"></div>
+    </div>
+
+    <!-- AP settings -->
+    <div class="card">
+      <h2>Hotspot (fallback AP)</h2>
+      <div class="row">
+        <label for="apSsid">SSID</label>
+        <input type="text" id="apSsid" style="flex:2" placeholder="TimerCube">
+      </div>
+      <div class="row">
+        <label for="apPass">Password</label>
+        <input type="password" id="apPass" style="flex:2" placeholder="toastmaster">
+      </div>
+      <small style="color:#6b7280;font-size:.75rem">Leave password blank for open network.</small>
+    </div>
+
+    <!-- Connection info -->
+    <div class="card">
+      <h2>Connection Info</h2>
+      <div class="info-row"><span>Mode</span><span class="info-val">Bluetooth</span></div>
+      <div class="info-row"><span>AP SSID</span><span class="info-val" id="infoAp">—</span></div>
+      <div class="info-row"><span>Firmware</span><span class="info-val" id="infoVer">—</span></div>
+    </div>
+
+    <!-- Reboot -->
+    <button class="btn btn-warn" onclick="doReboot()">Reboot Device</button>
+    <p class="status-note" style="margin-top:.5rem">
+      After reboot, reconnect the browser to resume Bluetooth mode.
+    </p>
+
+  </div>
+  </div>
+
+</div><!-- #app -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// Translations
+// ═══════════════════════════════════════════════════════════════
+const TR = {
+  en:{nav_timer:'Timer',nav_speakers:'Speakers',nav_report:'Report',nav_settings:'Settings',
+    btn_start:'Start',btn_running:'Running…',btn_stop:'Stop',btn_reset:'Reset',
+    label_presets:'Presets',label_speaker:'Speaker',label_manual_light:'Manual light',
+    opt_no_speaker:'— No speaker —',light_off:'Off',light_green:'Green',
+    light_amber:'Amber',light_red:'Red',light_flash:'Flash',
+    threshold_manual:'Manual mode',
+    pre_1min:'1 Minute',pre_table_topics:'Table Topics',pre_evaluations:'Evaluations',
+    pre_icebreaker:'Icebreaker',pre_5_7min:'5–7 Minutes',pre_10min:'10 Minutes',
+    pre_12min:'12 Minutes',pre_15min:'15 Minutes',pre_20min:'20 Minutes',
+    pre_manual:'Manual',pre_none:'—',
+    badge_not_timed:'Not timed',badge_over:'Over',badge_red:'Red',
+    badge_amber:'Amber',badge_green:'Green',badge_under:'Under',
+    msg_no_speakers:'No speakers recorded yet.'},
+  fr:{nav_timer:'Minuterie',nav_speakers:'Orateurs',nav_report:'Rapport',nav_settings:'Paramètres',
+    btn_start:'Démarrer',btn_running:'En cours…',btn_stop:'Arrêter',btn_reset:'Réinitialiser',
+    label_presets:'Préréglages',label_speaker:'Orateur',label_manual_light:'Lumière manuelle',
+    opt_no_speaker:'— Aucun orateur —',light_off:'Éteint',light_green:'Vert',
+    light_amber:'Ambre',light_red:'Rouge',light_flash:'Flash',
+    threshold_manual:'Mode manuel',
+    pre_1min:'1 Minute',pre_table_topics:'Sujets improvisés',pre_evaluations:'Évaluations',
+    pre_icebreaker:'Brise-glace',pre_5_7min:'5–7 Minutes',pre_10min:'10 Minutes',
+    pre_12min:'12 Minutes',pre_15min:'15 Minutes',pre_20min:'20 Minutes',
+    pre_manual:'Manuel',pre_none:'—',
+    badge_not_timed:'Non chronométré',badge_over:'Dépassé',badge_red:'Rouge',
+    badge_amber:'Ambre',badge_green:'Vert',badge_under:'En dessous',
+    msg_no_speakers:'Aucun orateur enregistré.'},
+  de:{nav_timer:'Timer',nav_speakers:'Redner',nav_report:'Bericht',nav_settings:'Einstellungen',
+    btn_start:'Start',btn_running:'Läuft…',btn_stop:'Stop',btn_reset:'Zurücksetzen',
+    label_presets:'Voreinstellungen',label_speaker:'Redner',label_manual_light:'Manuelle Lampe',
+    opt_no_speaker:'— Kein Redner —',light_off:'Aus',light_green:'Grün',
+    light_amber:'Gelb',light_red:'Rot',light_flash:'Blinken',
+    threshold_manual:'Manueller Modus',
+    pre_1min:'1 Minute',pre_table_topics:'Stegreifrede',pre_evaluations:'Bewertungen',
+    pre_icebreaker:'Eisbrecher',pre_5_7min:'5–7 Minuten',pre_10min:'10 Minuten',
+    pre_12min:'12 Minuten',pre_15min:'15 Minuten',pre_20min:'20 Minuten',
+    pre_manual:'Manuell',pre_none:'—',
+    badge_not_timed:'Nicht gemessen',badge_over:'Überzogen',badge_red:'Rot',
+    badge_amber:'Gelb',badge_green:'Grün',badge_under:'Unterschritten',
+    msg_no_speakers:'Noch keine Redner aufgezeichnet.'},
+  es:{nav_timer:'Temporizador',nav_speakers:'Oradores',nav_report:'Informe',nav_settings:'Configuración',
+    btn_start:'Iniciar',btn_running:'En marcha…',btn_stop:'Detener',btn_reset:'Restablecer',
+    label_presets:'Ajustes predefinidos',label_speaker:'Orador',label_manual_light:'Luz manual',
+    opt_no_speaker:'— Sin orador —',light_off:'Apagado',light_green:'Verde',
+    light_amber:'Ámbar',light_red:'Rojo',light_flash:'Destello',
+    threshold_manual:'Modo manual',
+    pre_1min:'1 Minuto',pre_table_topics:'Temas de mesa',pre_evaluations:'Evaluaciones',
+    pre_icebreaker:'Rompehielos',pre_5_7min:'5–7 Minutos',pre_10min:'10 Minutos',
+    pre_12min:'12 Minutos',pre_15min:'15 Minutos',pre_20min:'20 Minutos',
+    pre_manual:'Manual',pre_none:'—',
+    badge_not_timed:'Sin cronometrar',badge_over:'Excedido',badge_red:'Rojo',
+    badge_amber:'Ámbar',badge_green:'Verde',badge_under:'Por debajo',
+    msg_no_speakers:'Aún no hay oradores registrados.'}
+};
+let lang = 'en';
+function t(k){ return (TR[lang]||{})[k] || (TR.en||{})[k] || k; }
+
+// ═══════════════════════════════════════════════════════════════
+// Bluetooth connection
+// ═══════════════════════════════════════════════════════════════
+const _NUS_SVC = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const _NUS_TX  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';  // board → browser (notify)
+const _NUS_RX  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';  // browser → board (write)
+
+let bleDevice=null, txChar=null, rxChar=null, connected=false;
+let _buf='';
+
+function setConnDot(state,text){
+  const d=document.getElementById('connectDot');
+  d.className='';
+  if(state==='waiting') d.classList.add('waiting');
+  if(state==='ready')   d.classList.add('ready');
+  if(state==='error')   d.classList.add('error');
+  document.getElementById('connectText').textContent=text;
+}
+
+async function connectClick(){
+  if(!('bluetooth' in navigator)){
+    document.getElementById('noBLE').style.display='block';
+    return;
+  }
+  try{
+    bleDevice=await navigator.bluetooth.requestDevice({
+      filters:[{name:'TimerCube'}],
+      optionalServices:[_NUS_SVC]
+    });
+    bleDevice.addEventListener('gattserverdisconnected',onDisconnected);
+    setConnDot('waiting','Connecting…');
+    await _openDevice();
+  }catch(e){
+    if(e.name!=='NotFoundError')
+      setConnDot('error','Error: '+e.message);
+  }
+}
+
+async function _openDevice(){
+  const server  = await bleDevice.gatt.connect();
+  const service = await server.getPrimaryService(_NUS_SVC);
+  txChar = await service.getCharacteristic(_NUS_TX);
+  rxChar = await service.getCharacteristic(_NUS_RX);
+  _buf = '';
+  await txChar.startNotifications();
+  txChar.addEventListener('characteristicvaluechanged', _onNotify);
+  onConnected();
+}
+
+function _onNotify(event){
+  _buf += new TextDecoder().decode(event.target.value);
+  let nl;
+  while((nl=_buf.indexOf('\n'))!==-1){
+    const line=_buf.slice(0,nl).trim();
+    _buf=_buf.slice(nl+1);
+    if(line){
+      try{ handleMessage(JSON.parse(line)); }catch(_){}
+    }
+  }
+  if(_buf.length>512) _buf=_buf.slice(-256);
+}
+
+function onConnected(){
+  connected=true;
+  document.getElementById('connectScreen').style.display='none';
+  const app=document.getElementById('app');
+  app.style.display='flex';
+  setConnDot('ready','Connected');
+}
+
+function onDisconnected(){
+  connected=false;
+  txChar=null; rxChar=null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('connectScreen').style.display='flex';
+  setConnDot('error','Disconnected');
+}
+
+async function disconnectClick(){
+  if(bleDevice&&bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+  else onDisconnected();
+}
+
+// Send JSON to the board in 20-byte BLE chunks
+function send(obj){
+  if(!rxChar) return;
+  const data=new TextEncoder().encode(JSON.stringify(obj)+'\n');
+  (async()=>{
+    try{
+      for(let i=0;i<data.length;i+=20)
+        await rxChar.writeValueWithoutResponse(data.slice(i,i+20));
+    }catch(_){}
+  })();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Inbound message dispatcher
+// ═══════════════════════════════════════════════════════════════
+let state={colour:'off',elapsed:0,running:false,thresholds:[0,0,0,0],
+           speaker:'',flash_on:false};
+let speakers=[], cfg={wifi:{networks:[],ap_ssid:'TimerCube',ap_password:'toastmaster'},
+                      timer:{brightness:.6},language:'en'};
+
+function handleMessage(m){
+  if(m.type==='state'){
+    state=m;
+    renderTimer();
+    if(m.elapsed>0&&!m.running&&m.speaker){
+      const s=speakers.find(x=>x.name===m.speaker);
+      if(s&&s.actual==null){s.actual=Math.round(m.elapsed);renderSpk();}
+    }
+  }
+  else if(m.type==='speakers'){
+    speakers=m.speakers||[];
+    while(speakers.length<10) speakers.push({name:'',preset:[0,0,0,0],actual:null});
+    renderSpk();
+    fillSpkDropdown();
+  }
+  else if(m.type==='config'){
+    cfg=m.config;
+    applyConfig();
+  }
+  else if(m.type==='presets'){
+    // server presets not used — we have our own PRESET_KEYS
+  }
+  else if(m.type==='config_saved'){
+    showToast(m.ok!==false?'Settings saved':'Save failed',m.ok!==false);
+    document.getElementById('wifiResult').textContent=
+      m.ok!==false?'Saved.':'Save failed.';
+  }
+  else if(m.type==='speakers_saved'){
+    showToast('Speakers saved');
+  }
+  else if(m.type==='wifi_scan_result'){
+    renderScanResults(m.networks||[]);
+    document.getElementById('btnScan').textContent='Scan';
+    document.getElementById('btnScan').disabled=false;
+  }
+  else if(m.type==='version'){
+    document.getElementById('infoVer').textContent='V'+m.version+' · '+m.date;
+  }
+  else if(m.type==='rebooting'){
+    showToast('Rebooting…');
+    setTimeout(()=>onDisconnected(),1200);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Tab navigation
+// ═══════════════════════════════════════════════════════════════
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('nt-'+name).classList.add('active');
+  if(name==='report') buildReport();
+  if(name==='settings') send({type:'get_version'});
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Timer tab
+// ═══════════════════════════════════════════════════════════════
+const PRESET_KEYS=[
+  {key:'pre_1min',       times:[0,0,60,600]},
+  {key:'pre_table_topics',times:[60,90,120,150]},
+  {key:'pre_evaluations', times:[120,150,180,210]},
+  {key:'pre_icebreaker',  times:[240,300,360,390]},
+  {key:'pre_5_7min',      times:[300,360,420,450]},
+  {key:'pre_10min',       times:[480,540,600,630]},
+  {key:'pre_12min',       times:[600,660,720,750]},
+  {key:'pre_15min',       times:[780,840,900,930]},
+  {key:'pre_20min',       times:[960,1080,1200,1230]},
+  {key:'pre_manual',      times:[0,0,0,0]},
+];
+let activePre=-1;
+
+function fmt(s){
+  if(s==null||s===''||s===undefined) return '—';
+  s=Math.floor(+s);
+  return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');
+}
+
+function renderTimer(){
+  const d=document.getElementById('disp');
+  d.textContent=fmt(state.elapsed);
+  let cls=state.colour||'off';
+  if(cls==='flash') cls='flash'+(state.flash_on?'':' dim');
+  else if(cls==='off'&&state.running) cls='running';
+  d.className='display '+cls;
+
+  const thr=state.thresholds;
+  const thEl=document.getElementById('thresh');
+  if(thr.every(v=>!v)){
+    thEl.textContent=t('threshold_manual');
+  }else{
+    const cols=['#1db954','#ff8c1a','#ff3b30'];
+    const sep='<span style="color:#4b5563"> · </span>';
+    thEl.innerHTML=thr.slice(0,3).map((v,i)=>
+      v>0?`<span style="color:${cols[i]}">${fmt(v)}</span>`:null
+    ).filter(Boolean).join(sep);
+  }
+  const btnS=document.getElementById('btnStart');
+  btnS.textContent=state.running?t('btn_running'):t('btn_start');
+  btnS.disabled=state.running;
+}
+
+function buildPresets(){
+  const grid=document.getElementById('presets');
+  grid.innerHTML='';
+  PRESET_KEYS.forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='preset'+(activePre===i?' active':'');
+    b.textContent=t(p.key);
+    b.onclick=()=>{
+      send({type:'set_thresholds',thresholds:p.times});
+      activePre=i;
+      buildPresets();
+    };
+    grid.appendChild(b);
+  });
+}
+
+function fillSpkDropdown(){
+  const sel=document.getElementById('spkSel'),cur=sel.value;
+  sel.innerHTML=`<option value="">${t('opt_no_speaker')}</option>`;
+  speakers.filter(s=>s.name&&s.name.trim()).forEach(s=>{
+    const o=document.createElement('option');
+    o.value=s.name; o.textContent=s.name;
+    sel.appendChild(o);
+  });
+  sel.value=cur;
+}
+
+function pickSpeaker(name){
+  send({type:'set_speaker',speaker:name});
+  const spk=speakers.find(s=>s.name===name);
+  if(spk&&spk.preset){
+    send({type:'set_thresholds',thresholds:spk.preset});
+    const idx=PRESET_KEYS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(spk.preset));
+    activePre=idx;
+    buildPresets();
+  }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown',e=>{
+  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+  const k=e.key.toLowerCase();
+  if(k===' '){e.preventDefault();send({type:'start'});}
+  else if(k==='s') send({type:'stop'});
+  else if(k==='r') send({type:'reset'});
+  else if(k==='g') send({type:'set_colour',colour:'green'});
+  else if(k==='a') send({type:'set_colour',colour:'amber'});
+  else if(k==='x') send({type:'set_colour',colour:'red'});
+  else if(k==='f') send({type:'set_colour',colour:'flash'});
+  else if(k==='c') send({type:'set_colour',colour:'off'});
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Speakers tab
+// ═══════════════════════════════════════════════════════════════
+const SPK_PRESETS=[
+  {key:'pre_none',         times:[0,0,0,0]},
+  {key:'pre_1min',         times:[0,0,60,600]},
+  {key:'pre_table_topics', times:[60,90,120,150]},
+  {key:'pre_evaluations',  times:[120,150,180,210]},
+  {key:'pre_icebreaker',   times:[240,300,360,390]},
+  {key:'pre_5_7min',       times:[300,360,420,450]},
+  {key:'pre_10min',        times:[480,540,600,630]},
+  {key:'pre_12min',        times:[600,660,720,750]},
+  {key:'pre_15min',        times:[780,840,900,930]},
+  {key:'pre_20min',        times:[960,1080,1200,1230]},
+];
+
+function parseMmSs(str){
+  if(!str) return 0;
+  const p=str.trim().split(':');
+  if(p.length===2) return parseInt(p[0])*60+parseInt(p[1]);
+  return parseInt(p[0])||0;
+}
+
+function renderSpk(){
+  const tb=document.getElementById('spkTbody');
+  tb.innerHTML='';
+  speakers.forEach((s,i)=>{
+    const pr=s.preset||[0,0,0,0];
+    const pi=SPK_PRESETS.findIndex(p=>JSON.stringify(p.times)===JSON.stringify(pr));
+    const row=document.createElement('tr');
+    row.innerHTML=`
+      <td>${i+1}</td>
+      <td><input type="text" class="ti" value="${esc(s.name||'')}"
+          onchange="speakers[${i}].name=this.value"></td>
+      <td><select class="ps" onchange="spkApplyPreset(${i},this.value)">
+        ${SPK_PRESETS.map((p,j)=>`<option value="${j}"${pi===j?' selected':''}>${t(p.key)}</option>`).join('')}
+      </select></td>
+      <td><input type="text" class="ti ti-time" value="${fmtTime(pr[0])}"
+          onchange="spkSetTime(${i},0,this.value)"></td>
+      <td><input type="text" class="ti ti-time" value="${fmtTime(pr[1])}"
+          onchange="spkSetTime(${i},1,this.value)"></td>
+      <td><input type="text" class="ti ti-time" value="${fmtTime(pr[2])}"
+          onchange="spkSetTime(${i},2,this.value)"></td>
+      <td><input type="text" class="ti ti-time" value="${fmtTime(pr[3])}"
+          onchange="spkSetTime(${i},3,this.value)"></td>
+      <td><span class="actual-val">${s.actual!=null?fmtTime(s.actual):''}</span></td>
+      <td><button class="del-btn" onclick="spkDelRow(${i})">✕</button></td>`;
+    tb.appendChild(row);
+  });
+}
+
+function fmtTime(s){
+  if(!s&&s!==0) return '';
+  s=Math.floor(+s);
+  return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');
+}
+
+function spkApplyPreset(i,pi){ speakers[i].preset=[...SPK_PRESETS[+pi].times]; renderSpk(); }
+function spkSetTime(i,col,val){
+  if(!speakers[i].preset) speakers[i].preset=[0,0,0,0];
+  speakers[i].preset[col]=parseMmSs(val);
+}
+function spkAddRow(){ speakers.push({name:'',preset:[0,0,0,0],actual:null}); renderSpk(); }
+function spkDelRow(i){ speakers.splice(i,1); renderSpk(); }
+function spkSave(){ send({type:'save_speakers',speakers}); }
+function spkClearActuals(){ send({type:'clear_actuals'}); speakers.forEach(s=>s.actual=null); renderSpk(); }
+function spkClearAll(){
+  if(confirm('Clear all speakers?')){
+    speakers=[];renderSpk();send({type:'save_speakers',speakers});
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Report tab
+// ═══════════════════════════════════════════════════════════════
+function buildReport(){
+  const tb=document.getElementById('rptTbody');
+  const data=speakers.filter(s=>s.name&&s.name.trim());
+  if(!data.length){
+    tb.innerHTML=`<tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem">${t('msg_no_speakers')}</td></tr>`;
+    return;
+  }
+  tb.innerHTML=data.map((s,i)=>{
+    const thr=s.preset||[0,0,0,0];
+    return`<tr>
+      <td>${i+1}</td><td>${esc(s.name||'')}</td>
+      <td>${fmt(thr[0])}</td><td>${fmt(thr[1])}</td>
+      <td>${fmt(thr[2])}</td><td>${fmt(thr[3])}</td>
+      <td>${fmt(s.actual)}</td>
+      <td>${badge(s.actual,thr)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function badge(actual,thr){
+  if(actual==null) return `<span class="badge b-none">${t('badge_not_timed')}</span>`;
+  const s=+actual,g=thr[0],a=thr[1],r=thr[2],f=thr[3];
+  if(f&&s>=f) return `<span class="badge b-over">${t('badge_over')}</span>`;
+  if(r&&s>=r) return `<span class="badge b-red">${t('badge_red')}</span>`;
+  if(a&&s>=a) return `<span class="badge b-amber">${t('badge_amber')}</span>`;
+  if(g&&s>=g) return `<span class="badge b-green">${t('badge_green')}</span>`;
+  return `<span class="badge b-under">${t('badge_under')}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Settings tab
+// ═══════════════════════════════════════════════════════════════
+let editOpen=-1, scanResults=[];
+
+function applyConfig(){
+  const l=cfg.language||'en';
+  if(l!==lang){ lang=l; document.getElementById('langSel').value=l; applyI18n(); }
+  const b=Math.round((cfg.timer?.brightness??0.6)*100);
+  document.getElementById('brightSlider').value=b;
+  document.getElementById('brightVal').textContent=b;
+  document.getElementById('apSsid').value=cfg.wifi?.ap_ssid??'TimerCube';
+  document.getElementById('apPass').value=cfg.wifi?.ap_password??'toastmaster';
+  document.getElementById('infoAp').textContent=cfg.wifi?.ap_ssid??'—';
+  renderNetList();
+}
+
+function onLangChange(l){ lang=l; cfg.language=l; applyI18n(); }
+function saveLang(){ send({type:'save_config',config:{language:cfg.language}}); }
+
+function applyI18n(){
+  document.getElementById('lbl-presets').textContent=t('label_presets');
+  document.getElementById('lbl-speaker').textContent=t('label_speaker');
+  document.getElementById('lbl-lights').textContent=t('label_manual_light');
+  document.getElementById('nt-timer').textContent=t('nav_timer');
+  document.getElementById('nt-speakers').textContent=t('nav_speakers');
+  document.getElementById('nt-report').textContent=t('nav_report');
+  document.getElementById('nt-settings').textContent=t('nav_settings');
+  document.getElementById('btnStart').textContent=
+    state.running?t('btn_running'):t('btn_start');
+  buildPresets();
+  fillSpkDropdown();
+  renderSpk();
+}
+
+function setBrightness(val){
+  document.getElementById('brightVal').textContent=val;
+  cfg.timer=cfg.timer||{};
+  cfg.timer.brightness=+val/100;
+  send({type:'set_brightness',brightness:+val/100});
+}
+
+// ── Network list ──────────────────────────────────────────────
+function renderNetList(){
+  const nets=cfg.wifi?.networks||[];
+  const div=document.getElementById('netList');
+  div.innerHTML='';
+  if(!nets.length){
+    div.innerHTML=`<p style="color:#6b7280;font-size:.85rem">No networks saved.</p>`;
+    return;
+  }
+  nets.forEach((n,i)=>{
+    const row=document.createElement('div');
+    row.className='net-row';
+    row.innerHTML=`
+      <span class="pri">${n.priority??i}</span>
+      <span class="ssid">${esc(n.ssid)}</span>
+      <button class="btn btn-secondary btn-sm" onclick="toggleEdit(${i})">Edit</button>
+      <button class="btn btn-secondary btn-sm" onclick="moveNet(${i},-1)" ${i===0?'disabled':''}>↑</button>
+      <button class="btn btn-secondary btn-sm" onclick="moveNet(${i},1)" ${i===nets.length-1?'disabled':''}>↓</button>
+      <button class="btn btn-danger btn-sm" onclick="delNet(${i})">✕</button>`;
+    div.appendChild(row);
+    const ep=document.createElement('div');
+    ep.className='edit-panel'+(editOpen===i?' open':'');
+    ep.id='ep'+i;
+    ep.innerHTML=`
+      <label>SSID<input type="text" id="es${i}" value="${esc(n.ssid)}"></label>
+      <label>Password<input type="password" id="pw${i}" value="${esc(n.password||'')}"></label>
+      <label>Static IP <small style="color:#6b7280">(optional — blank for DHCP)</small>
+        <input type="text" id="si${i}" value="${esc(n.static_ip||'')}" placeholder="e.g. 192.168.1.100"></label>
+      <div style="display:flex;gap:.4rem;margin-top:.4rem">
+        <button class="btn btn-primary btn-sm" onclick="applyEdit(${i})">Apply</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeEdit()">Cancel</button>
+      </div>`;
+    div.appendChild(ep);
+  });
+}
+
+function toggleEdit(i){ editOpen=editOpen===i?-1:i; renderNetList(); if(editOpen===i){const el=document.getElementById('es'+i);if(el)el.focus();} }
+function closeEdit(){ editOpen=-1; renderNetList(); }
+function applyEdit(i){
+  cfg.wifi.networks[i].ssid=document.getElementById('es'+i).value.trim();
+  cfg.wifi.networks[i].password=document.getElementById('pw'+i).value;
+  const si=document.getElementById('si'+i).value.trim();
+  if(si) cfg.wifi.networks[i].static_ip=si; else delete cfg.wifi.networks[i].static_ip;
+  editOpen=-1; renderNetList();
+}
+function moveNet(i,dir){
+  const nets=cfg.wifi.networks, j=i+dir;
+  if(j<0||j>=nets.length) return;
+  [nets[i],nets[j]]=[nets[j],nets[i]];
+  nets.forEach((n,k)=>n.priority=k);
+  renderNetList();
+}
+function delNet(i){ cfg.wifi.networks.splice(i,1); cfg.wifi.networks.forEach((n,k)=>n.priority=k); renderNetList(); }
+function addNet(){ cfg.wifi.networks.push({ssid:'',password:'',priority:cfg.wifi.networks.length}); editOpen=cfg.wifi.networks.length-1; renderNetList(); setTimeout(()=>{const el=document.getElementById('es'+editOpen);if(el)el.focus();},50); }
+
+function saveWifi(){
+  cfg.wifi.ap_ssid=document.getElementById('apSsid').value.trim()||'TimerCube';
+  cfg.wifi.ap_password=document.getElementById('apPass').value;
+  send({type:'save_config',config:{wifi:cfg.wifi,timer:cfg.timer}});
+}
+
+// ── WiFi scan ─────────────────────────────────────────────────
+function rssiToBars(r){ if(r>=-50)return'▂▄▆█';if(r>=-60)return'▂▄▆░';if(r>=-70)return'▂▄░░';return'▂░░░'; }
+
+function doScan(){
+  const btn=document.getElementById('btnScan');
+  btn.textContent='Scanning…'; btn.disabled=true;
+  document.getElementById('scanList').innerHTML='';
+  scanResults=[];
+  send({type:'wifi_scan'});
+}
+
+function renderScanResults(nets){
+  const list=document.getElementById('scanList');
+  if(!nets.length){ list.innerHTML=`<p style="color:#6b7280;font-size:.85rem">No networks found.</p>`; return; }
+  scanResults=nets;
+  list.innerHTML='';
+  nets.forEach((n,i)=>{
+    const row=document.createElement('div');
+    row.className='scan-row';
+    row.innerHTML=`
+      <span class="scan-ssid">${esc(n.ssid)}</span>
+      <span class="scan-rssi">${rssiToBars(n.rssi)} ${n.rssi} dBm</span>
+      <button class="btn btn-secondary btn-sm" onclick="addScanned(${i})">Add</button>`;
+    list.appendChild(row);
+  });
+}
+
+function addScanned(idx){
+  cfg.wifi.networks.push({ssid:scanResults[idx].ssid,password:'',priority:cfg.wifi.networks.length});
+  editOpen=cfg.wifi.networks.length-1;
+  renderNetList();
+  setTimeout(()=>{ const pw=document.getElementById('pw'+editOpen); if(pw){pw.scrollIntoView({behavior:'smooth',block:'center'});pw.focus();} },80);
+}
+
+function doReboot(){ if(confirm('Reboot the device?')) send({type:'reboot'}); }
+
+// ═══════════════════════════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════════════════════════
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showToast(msg,ok=true){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.style.background=ok?'#1db954':'#dc2626';
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════
+if(!('bluetooth' in navigator)){
+  document.getElementById('noBLE').style.display='block';
+  document.getElementById('btnConnect').disabled=true;
+}
+
+buildPresets();
+</script>
+</body>
+</html>
