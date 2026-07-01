@@ -8,6 +8,7 @@
     "led_matrix.py",
     "imu.py",
     "usb_server.py",
+    "ble_server.py",
     "ddns_client.py",
     "ota_updater.py",
     "version.py",

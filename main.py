@@ -3,16 +3,9 @@ TimerCube – ESP32-S3-Matrix entry point.
 
 Boot mode is determined by reading the QMI8658 accelerometer at power-on:
 
-  vertical (or unknown)
-      → try saved WiFi networks
-      → if WiFi fails: show U, wait 5 s for USB HELLO
-      → if USB times out: fall back to AP hotspot
-
-  left side down
-      → USB-only mode (wait indefinitely for browser HELLO)
-
-  right side down
-      → AP hotspot mode immediately (skip WiFi and USB)
+  left side down  → USB serial mode  (web/index.html via Web Serial)
+  right side down → Bluetooth mode   (web/ble.html   via Web Bluetooth)
+  upright / unknown → WiFi → AP hotspot
 
 USB handshake protocol
   Browser → board : "HELLO\n"
@@ -24,7 +17,6 @@ UsbServer._command_loop (reconnection after page reload).
 
 import asyncio
 import sys
-import time
 
 from config      import load_config
 from led_matrix  import Matrix
@@ -48,17 +40,15 @@ async def main():
 
     if orientation == 'left':
         # USB-only: wait indefinitely for browser HELLO
-        if _usb_handshake(matrix, timeout_s=None):
+        if _usb_handshake(matrix):
             await _run_usb(config, matrix)
-        else:
-            await _run_ap(config, matrix)   # shouldn't reach here with None timeout
 
     elif orientation == 'right':
-        # AP mode immediately
-        await _run_ap(config, matrix)
+        # BLE mode immediately
+        await _run_ble(config, matrix)
 
     else:
-        # Vertical / unknown: WiFi → USB (5 s) → AP
+        # Upright / unknown: WiFi → AP
         _set_hostname()
         from wifi_manager import try_networks
         result = await try_networks(config, matrix)
@@ -70,62 +60,28 @@ async def main():
             await server.start()
             return
 
-        # WiFi unavailable — try USB for 5 s
-        if _usb_handshake(matrix, timeout_s=5):
-            await _run_usb(config, matrix)
-            return
-
-        # Neither WiFi nor USB — start AP hotspot
+        # WiFi unavailable — start AP hotspot
         await _run_ap(config, matrix)
 
 
 # ── USB handshake (synchronous, called before asyncio tasks start) ─────────
 
-def _usb_handshake(matrix, timeout_s):
+def _usb_handshake(matrix):
     """
-    Show U on LEDs, wait for "HELLO" from browser, reply "READY_OK".
-    timeout_s=None waits forever (left-side USB-only mode).
-    Returns True on success, False on timeout.
+    Show U on LEDs (rotated for left-side-down viewing), wait for "HELLO"
+    from the browser, reply "READY_OK".  Blocks indefinitely.
+    Returns True on success (always, unless an exception escapes).
     """
     from led_matrix import BLUE
-    matrix.show_char('U', BLUE)
-
-    if timeout_s is None:
-        # Blocking wait — fine for left-side dedicated USB mode
-        while True:
-            line = sys.stdin.readline().strip()
-            if line == 'HELLO':
-                sys.stdout.write('READY_OK\n')
-                return True
-        # unreachable
-        return False
-
-    # ── Timeout case (vertical orientation, 5 s window) ──────────────────
-    # readline() blocks the calling thread, so we run it in a MicroPython
-    # thread and poll the result from the main thread.
-    result = [None]
-
-    def _reader():
-        while True:
-            try:
-                ln = sys.stdin.readline().strip()
-                if ln == 'HELLO':
-                    result[0] = 'HELLO'
-                    return
-            except Exception:
-                return
-
-    import _thread
-    _thread.start_new_thread(_reader, ())
-
-    deadline = time.ticks_add(time.ticks_ms(), int(timeout_s * 1000))
-    while result[0] is None:
-        if time.ticks_diff(deadline, time.ticks_ms()) <= 0:
-            return False
-        time.sleep_ms(100)
-
-    sys.stdout.write('READY_OK\n')
-    return True
+    # rotation=270: cube tipped left rotates the display 90° CW from viewer's
+    # perspective; counter-rotating 270° CW makes U read correctly from above.
+    # Swap to rotation=90 if U appears upside-down on hardware.
+    matrix.show_char('U', BLUE, rotation=270)
+    while True:
+        line = sys.stdin.readline().strip()
+        if line == 'HELLO':
+            sys.stdout.write('READY_OK\n')
+            return True
 
 
 # ── mode runners ───────────────────────────────────────────────────────────
@@ -133,6 +89,17 @@ def _usb_handshake(matrix, timeout_s):
 async def _run_usb(config, matrix):
     from usb_server import UsbServer
     server = UsbServer(config, matrix)
+    await server.run()
+
+
+async def _run_ble(config, matrix):
+    from led_matrix import BLUE
+    # rotation=90: cube tipped right rotates the display 90° CCW from viewer's
+    # perspective; counter-rotating 90° CW makes B read correctly from above.
+    # Swap to rotation=270 if B appears upside-down on hardware.
+    matrix.show_char('B', BLUE, rotation=90)
+    from ble_server import BleServer
+    server = BleServer(config, matrix)
     await server.run()
 
 

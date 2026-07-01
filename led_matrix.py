@@ -46,6 +46,7 @@ _FONT = {
     ':': [0, 2, 0, 2, 0],   # two centre dots
     '?': [7, 1, 2, 0, 2],
     'U': [5, 5, 5, 5, 7],
+    'B': [6, 5, 6, 5, 6],   # ##. / #.# / ##. / #.# / ##.
 }
 
 
@@ -54,18 +55,20 @@ class Matrix:
         pin = machine.Pin(MATRIX_PIN, machine.Pin.OUT)
         self.np = neopixel.NeoPixel(pin, MATRIX_SIZE * MATRIX_SIZE)
         self.brightness = 0.6
+        self._extra_rot = None   # per-call rotation override for show_char
 
     # ── coordinate helpers ─────────────────────────────────────────────────
 
     def _rotate(self, x, y):
         """
-        Counter-rotate (x, y) to compensate for the board's physical rotation
-        in its case.  With ROTATION=0 this is a no-op.
+        Counter-rotate (x, y) to compensate for physical rotation.
+        Uses _extra_rot if set (per-call override), else the module ROTATION constant.
         """
         S = MATRIX_SIZE - 1
-        if ROTATION == 90:   return S - y, x
-        if ROTATION == 180:  return S - x, S - y
-        if ROTATION == 270:  return y, S - x
+        r = self._extra_rot if self._extra_rot is not None else ROTATION
+        if r == 90:   return S - y, x
+        if r == 180:  return S - x, S - y
+        if r == 270:  return y, S - x
         return x, y
 
     def _idx(self, x, y):
@@ -113,12 +116,20 @@ class Matrix:
         self.np[self._idx(3, 3)] = self._scale(colour)
         self.np.write()
 
-    def show_char(self, char, colour):
-        """Show a single character centred on the 8×8 grid."""
+    def show_char(self, char, colour, rotation=None):
+        """Show a single character centred on the 8×8 grid.
+
+        rotation overrides the global ROTATION for this call only — use when
+        the cube is on its side and the glyph must be pre-rotated so it reads
+        correctly from the viewer's angle (e.g. rotation=270 when left-side-down,
+        rotation=90 when right-side-down; swap if wrong after physical testing).
+        """
+        self._extra_rot = rotation
         for i in range(MATRIX_SIZE * MATRIX_SIZE):
             self.np[i] = BLACK
         self._draw_char(char, colour, x_offset=2)
         self.np.write()
+        self._extra_rot = None
 
     def show_two_chars(self, c1, c2, colour1, colour2):
         """Show two characters side by side (cols 0–2 and 4–6)."""
