@@ -1,4 +1,4 @@
-VERSION       = "2.0"
-VERSION_DATE  = "10 May 2026"
+VERSION       = "2.1"
+VERSION_DATE  = "1 July 2026"
 GITHUB_REPO   = "KitBarritt/TimerCube"
 GITHUB_BRANCH = "main"
