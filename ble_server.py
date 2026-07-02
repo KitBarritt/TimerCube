@@ -169,13 +169,18 @@ class BleServer:
 
     async def _matrix_loop(self):
         from led_matrix import GREEN, AMBER, RED, BLUE
-        flash_on = True
+        flash_on  = True
+        adv_blink = True   # blinks B while advertising so connected=solid is distinguishable
         while True:
             try:
                 if self._conn_handle is None:
-                    # Advertising — hold 'B' so the user knows the mode
-                    self.matrix.show_char('B', BLUE, rotation=90)
+                    if adv_blink:
+                        self.matrix.show_char('B', BLUE, rotation=90)
+                    else:
+                        self.matrix.clear()
+                    adv_blink = not adv_blink
                 else:
+                    adv_blink = True   # reset so first advertising cycle shows B immediately
                     state  = self.timer.get_state()
                     colour = state['colour']
                     if colour == 'off':
