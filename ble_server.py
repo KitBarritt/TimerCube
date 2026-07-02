@@ -169,36 +169,26 @@ class BleServer:
 
     async def _matrix_loop(self):
         from led_matrix import GREEN, AMBER, RED, BLUE
-        flash_on   = True
-        conn_ticks = 0   # counts down after connect to show a brief green confirmation
+        flash_on = True
         while True:
             try:
-                if self._conn_handle is None:
-                    self.matrix.show_char('B', BLUE, rotation=90)
-                    conn_ticks = 4   # arm: next connection shows 2 s of green
-                else:
-                    if conn_ticks > 0:
-                        # Brief green flash so the user can see the connection landed
-                        self.matrix.fill(GREEN)
-                        conn_ticks -= 1
+                state  = self.timer.get_state()
+                colour = state['colour']
+                if colour == 'off':
+                    if state['running']:
+                        self.matrix.dot(BLUE)
                     else:
-                        state  = self.timer.get_state()
-                        colour = state['colour']
-                        if colour == 'off':
-                            if state['running']:
-                                self.matrix.dot(BLUE)
-                            else:
-                                self.matrix.clear()
-                        elif colour == 'green':
-                            self.matrix.fill(GREEN)
-                        elif colour == 'amber':
-                            self.matrix.fill(AMBER)
-                        elif colour == 'red':
-                            self.matrix.fill(RED)
-                        elif colour == 'flash':
-                            flash_on = not flash_on
-                            self.timer.flash_on = flash_on
-                            self.matrix.fill(RED) if flash_on else self.matrix.clear()
+                        self.matrix.clear()
+                elif colour == 'green':
+                    self.matrix.fill(GREEN)
+                elif colour == 'amber':
+                    self.matrix.fill(AMBER)
+                elif colour == 'red':
+                    self.matrix.fill(RED)
+                elif colour == 'flash':
+                    flash_on = not flash_on
+                    self.timer.flash_on = flash_on
+                    self.matrix.fill(RED) if flash_on else self.matrix.clear()
             except Exception as e:
                 print('Matrix loop error:', e)
             await asyncio.sleep(0.5)
