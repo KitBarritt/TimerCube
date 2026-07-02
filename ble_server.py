@@ -84,8 +84,7 @@ class BleServer:
 
     def _irq(self, event, data):
         if event == _IRQ_CENTRAL_CONNECT:
-            conn_handle, _, _ = data
-            self._conn_handle    = conn_handle
+            self._conn_handle    = data[0]
             self._just_connected = True
 
         elif event == _IRQ_CENTRAL_DISCONNECT:
@@ -104,9 +103,8 @@ class BleServer:
                         self._cmd_queue.append(line)
 
         elif event == _IRQ_MTU_EXCHANGED:
-            conn_handle, mtu = data
-            if conn_handle == self._conn_handle:
-                self._mtu = mtu
+            if data[0] == self._conn_handle:
+                self._mtu = data[1]
 
     # ── advertising ────────────────────────────────────────────────────────
 
