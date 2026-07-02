@@ -84,7 +84,8 @@ class BleServer:
 
     def _irq(self, event, data):
         if event == _IRQ_CENTRAL_CONNECT:
-            self._conn_handle    = data[0]
+            conn_handle, _, _ = data
+            self._conn_handle    = conn_handle
             self._just_connected = True
 
         elif event == _IRQ_CENTRAL_DISCONNECT:
@@ -103,8 +104,9 @@ class BleServer:
                         self._cmd_queue.append(line)
 
         elif event == _IRQ_MTU_EXCHANGED:
-            if data[0] == self._conn_handle:
-                self._mtu = data[1]
+            conn_handle, mtu = data
+            if conn_handle == self._conn_handle:
+                self._mtu = mtu
 
     # ── advertising ────────────────────────────────────────────────────────
 
@@ -167,36 +169,26 @@ class BleServer:
 
     async def _matrix_loop(self):
         from led_matrix import GREEN, AMBER, RED, BLUE
-        flash_on   = True
-        conn_ticks = 0   # counts down after connect to show a brief green confirmation
+        flash_on = True
         while True:
             try:
-                if self._conn_handle is None:
-                    self.matrix.show_char('B', BLUE, rotation=90)
-                    conn_ticks = 4   # arm: next connection shows 2 s of green
-                else:
-                    if conn_ticks > 0:
-                        # Brief green flash so the user can see the connection landed
-                        self.matrix.fill(GREEN)
-                        conn_ticks -= 1
+                state  = self.timer.get_state()
+                colour = state['colour']
+                if colour == 'off':
+                    if state['running']:
+                        self.matrix.dot(BLUE)
                     else:
-                        state  = self.timer.get_state()
-                        colour = state['colour']
-                        if colour == 'off':
-                            if state['running']:
-                                self.matrix.dot(BLUE)
-                            else:
-                                self.matrix.clear()
-                        elif colour == 'green':
-                            self.matrix.fill(GREEN)
-                        elif colour == 'amber':
-                            self.matrix.fill(AMBER)
-                        elif colour == 'red':
-                            self.matrix.fill(RED)
-                        elif colour == 'flash':
-                            flash_on = not flash_on
-                            self.timer.flash_on = flash_on
-                            self.matrix.fill(RED) if flash_on else self.matrix.clear()
+                        self.matrix.clear()
+                elif colour == 'green':
+                    self.matrix.fill(GREEN)
+                elif colour == 'amber':
+                    self.matrix.fill(AMBER)
+                elif colour == 'red':
+                    self.matrix.fill(RED)
+                elif colour == 'flash':
+                    flash_on = not flash_on
+                    self.timer.flash_on = flash_on
+                    self.matrix.fill(RED) if flash_on else self.matrix.clear()
             except Exception as e:
                 print('Matrix loop error:', e)
             await asyncio.sleep(0.5)
