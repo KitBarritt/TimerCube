@@ -55,6 +55,7 @@ async def main():
         if result:
             ip, iface = result
             print('Network ready: mode=client  ip=%s' % ip)
+            _ddns_register(ip)
             timer  = Timer(config)
             server = WebServer(timer, config, matrix, ip, 'client')
             await server.start()
@@ -111,6 +112,17 @@ async def _run_ap(config, matrix):
     timer  = Timer(config)
     server = WebServer(timer, config, matrix, ip, 'ap')
     await server.start()
+
+
+def _ddns_register(ip):
+    try:
+        from config import read_device_id
+        from ddns_client import register
+        device_id = read_device_id()
+        if device_id:
+            register(device_id, ip)
+    except Exception as e:
+        print('DDNS setup error:', e)
 
 
 def _set_hostname():

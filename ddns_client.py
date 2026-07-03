@@ -1,16 +1,22 @@
-import urequests
+"""
+DDNS registration for TimerCube.
 
-_REGISTRY = 'http://timercubeip.kitbarritt.org'
+On WiFi connect, calls:
+  https://timercubeip.kitbarritt.org/register?id=<device_id>&ip=<ip>
 
-def register(ip):
+CloudFlare processes this to keep the per-device subdomain pointing at the
+device's current LAN IP, so cubeusb.kitbarritt.org/<id> always resolves.
+"""
+
+def register(device_id, ip):
     try:
-        from id import UNIT_ID
-    except ImportError:
-        return
-    try:
-        r = urequests.get(f'{_REGISTRY}/register?id={UNIT_ID}&ip={ip}', timeout=5)
-        print('Registering device:%s' % UNIT_ID)
-        print(' to ddns: client ip=%s' % ip)
+        import urequests
+        url = 'https://timercubeip.kitbarritt.org/register?id=%s&ip=%s' % (device_id, ip)
+        r = urequests.get(url, timeout=10)
+        ok = r.status_code == 200
         r.close()
-    except Exception:
-        pass
+        print('DDNS: id=%s ip=%s status=%s' % (device_id, ip, r.status_code))
+        return ok
+    except Exception as e:
+        print('DDNS: register failed:', e)
+        return False
