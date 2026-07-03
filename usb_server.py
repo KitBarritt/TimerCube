@@ -199,6 +199,15 @@ class UsbServer:
             save_config(self.config)
             self._send({'type': 'config_saved', 'ok': True})
 
+        elif t == 'get_device_id':
+            from config import read_device_id
+            self._send({'type': 'device_id', 'id': read_device_id()})
+
+        elif t == 'save_device_id':
+            from config import save_device_id
+            ok = save_device_id(msg.get('id', ''))
+            self._send({'type': 'device_id_saved', 'ok': ok})
+
         elif t == 'get_version':
             try:
                 from version import VERSION, VERSION_DATE

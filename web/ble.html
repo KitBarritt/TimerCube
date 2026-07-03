@@ -152,6 +152,9 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
   padding:.3rem 0;border-bottom:1px solid #1f2937;font-size:.85rem}
 .info-row:last-child{border:none}
 .info-val{color:#9ca3af;font-family:monospace;font-size:.8rem}
+.edit-id-btn{background:none;border:none;cursor:pointer;color:transparent;
+  font-size:.85rem;padding:.1rem .3rem;line-height:1;transition:color .2s}
+.edit-id-btn:hover{color:#6b7280}
 .scan-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;
   background:#111827;border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.3rem}
 .scan-ssid{flex:1;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -325,6 +328,28 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
       <div class="info-row"><span>Mode</span><span class="info-val">Bluetooth</span></div>
       <div class="info-row"><span>AP SSID</span><span class="info-val" id="infoAp">—</span></div>
       <div class="info-row"><span>Firmware</span><span class="info-val" id="infoVer">—</span></div>
+      <div class="info-row">
+        <span>Device ID</span>
+        <span style="display:flex;align-items:center;gap:.4rem">
+          <span class="info-val" id="infoDeviceId">—</span>
+          <button class="edit-id-btn" onclick="openIdEdit()" title="Edit Device ID">✎</button>
+        </span>
+      </div>
+    </div>
+
+    <!-- Device ID edit panel -->
+    <div id="deviceIdPanel" class="card" style="display:none">
+      <div style="background:#78350f;border:1px solid #92400e;border-radius:.375rem;
+                  padding:.6rem .75rem;margin-bottom:.75rem;font-size:.85rem;color:#fde68a;line-height:1.5">
+        ⚠ Changing the Device ID may prevent this unit from functioning correctly.
+        Only change this during initial device configuration.
+      </div>
+      <label>Device ID</label>
+      <div style="display:flex;gap:.5rem;margin-top:.3rem">
+        <input type="text" id="deviceIdInput" style="flex:1" maxlength="32">
+        <button class="btn btn-warn" onclick="saveDeviceId()">Save</button>
+        <button class="btn btn-secondary" onclick="closeIdEdit()">Cancel</button>
+      </div>
     </div>
 
     <!-- Reboot -->
@@ -542,6 +567,13 @@ function handleMessage(m){
   else if(m.type==='version'){
     document.getElementById('infoVer').textContent='V'+m.version+' · '+m.date;
   }
+  else if(m.type==='device_id'){
+    document.getElementById('infoDeviceId').textContent=m.id||'—';
+  }
+  else if(m.type==='device_id_saved'){
+    if(m.ok){ closeIdEdit(); showToast('Device ID saved'); }
+    else showToast('Failed to save Device ID',false);
+  }
   else if(m.type==='rebooting'){
     showToast('Rebooting…');
     setTimeout(()=>onDisconnected(),1200);
@@ -557,7 +589,7 @@ function showTab(name){
   document.getElementById('tab-'+name).classList.add('active');
   document.getElementById('nt-'+name).classList.add('active');
   if(name==='report') buildReport();
-  if(name==='settings') send({type:'get_version'});
+  if(name==='settings'){ send({type:'get_version'}); send({type:'get_device_id'}); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -901,6 +933,17 @@ function addScanned(idx){
 }
 
 function doReboot(){ if(confirm('Reboot the device?')) send({type:'reboot'}); }
+
+function openIdEdit(){
+  const cur=document.getElementById('infoDeviceId').textContent;
+  document.getElementById('deviceIdInput').value=cur==='—'?'':cur;
+  document.getElementById('deviceIdPanel').style.display='';
+}
+function closeIdEdit(){ document.getElementById('deviceIdPanel').style.display='none'; }
+function saveDeviceId(){
+  const id=document.getElementById('deviceIdInput').value.trim();
+  send({type:'save_device_id',id});
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Utilities

@@ -172,27 +172,23 @@ class BleServer:
         flash_on = True
         while True:
             try:
-                if self._conn_handle is None:
-                    # Advertising — hold 'B' so the user knows the mode
-                    self.matrix.show_char('B', BLUE, rotation=90)
-                else:
-                    state  = self.timer.get_state()
-                    colour = state['colour']
-                    if colour == 'off':
-                        if state['running']:
-                            self.matrix.dot(BLUE)
-                        else:
-                            self.matrix.clear()
-                    elif colour == 'green':
-                        self.matrix.fill(GREEN)
-                    elif colour == 'amber':
-                        self.matrix.fill(AMBER)
-                    elif colour == 'red':
-                        self.matrix.fill(RED)
-                    elif colour == 'flash':
-                        flash_on = not flash_on
-                        self.timer.flash_on = flash_on
-                        self.matrix.fill(RED) if flash_on else self.matrix.clear()
+                state  = self.timer.get_state()
+                colour = state['colour']
+                if colour == 'off':
+                    if state['running']:
+                        self.matrix.dot(BLUE)
+                    else:
+                        self.matrix.clear()
+                elif colour == 'green':
+                    self.matrix.fill(GREEN)
+                elif colour == 'amber':
+                    self.matrix.fill(AMBER)
+                elif colour == 'red':
+                    self.matrix.fill(RED)
+                elif colour == 'flash':
+                    flash_on = not flash_on
+                    self.timer.flash_on = flash_on
+                    self.matrix.fill(RED) if flash_on else self.matrix.clear()
             except Exception as e:
                 print('Matrix loop error:', e)
             await asyncio.sleep(0.5)
@@ -262,6 +258,15 @@ class BleServer:
                 self.config['language'] = new_cfg['language']
             save_config(self.config)
             self._send({'type': 'config_saved', 'ok': True})
+
+        elif t == 'get_device_id':
+            from config import read_device_id
+            self._send({'type': 'device_id', 'id': read_device_id()})
+
+        elif t == 'save_device_id':
+            from config import save_device_id
+            ok = save_device_id(msg.get('id', ''))
+            self._send({'type': 'device_id_saved', 'ok': ok})
 
         elif t == 'get_version':
             try:
