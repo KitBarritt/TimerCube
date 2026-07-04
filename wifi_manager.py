@@ -2,6 +2,9 @@
 WiFi manager: connect to saved networks in priority order, fall back to AP.
 In AP mode also starts a captive-portal DNS server that redirects all queries
 to 192.168.4.1 so phones show the "sign in to network" prompt.
+
+Compatible with Raspberry Pi Pico W / Pico 2 W (CYW43 chip, standard
+MicroPython network module — same API as the ESP32 port).
 """
 
 import network
@@ -18,7 +21,6 @@ _dns_running = False
 
 def _dns_response(query, ip):
     """Build a minimal DNS A-record response pointing to *ip*."""
-    # Transaction ID + flags (response, authoritative)
     resp = bytearray(query[:2]) + b'\x81\x80'
     resp += query[4:6]          # QDCOUNT  (echo questions count)
     resp += query[4:6]          # ANCOUNT  (same)
@@ -44,7 +46,7 @@ async def _run_dns(ip):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(('0.0.0.0', 53))
     sock.setblocking(False)
-    print('DNS captive-portal running, all queries → ', ip)
+    print('DNS captive-portal running, all queries →', ip)
     try:
         while True:
             try:
@@ -121,7 +123,7 @@ async def connect_wifi(config, matrix):
 
 
 async def start_ap(config, matrix):
-    ap_ssid = config['wifi'].get('ap_ssid', 'TimerCube')
+    ap_ssid = config['wifi'].get('ap_ssid', 'ToastTimer')
     ap_pass = config['wifi'].get('ap_password', 'toastmaster')
 
     ap = network.WLAN(network.AP_IF)
@@ -130,9 +132,9 @@ async def start_ap(config, matrix):
     cfg = {'ssid': ap_ssid}
     if ap_pass:
         cfg['password'] = ap_pass
-        cfg['authmode'] = network.AUTH_WPA_WPA2_PSK
+        cfg['security'] = 4   # WPA2 on Pico W (network.AUTH_WPA2_AES_PSK = 4)
     else:
-        cfg['authmode'] = network.AUTH_OPEN
+        cfg['security'] = 0   # open
 
     ap.config(**cfg)
 
@@ -144,7 +146,7 @@ async def start_ap(config, matrix):
 
     ip = ap.ifconfig()[0]
     print('AP mode: SSID=%s  IP=%s' % (ap_ssid, ip))
-    matrix.show_char('A', AMBER)
+    matrix.show_two_chars('A', 'P', AMBER, AMBER)
 
     # Start captive-portal DNS in background
     asyncio.create_task(_run_dns(ip))

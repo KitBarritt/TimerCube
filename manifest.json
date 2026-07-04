@@ -6,7 +6,7 @@
     "config.py",
     "wifi_manager.py",
     "led_matrix.py",
-    "imu.py",
+    "battery.py",
     "usb_server.py",
     "ble_server.py",
     "ddns_client.py",
@@ -17,6 +17,7 @@
     "public/speakers.html",
     "public/report.html",
     "public/translations.js",
+    "public/favicon.png",
     "manifest.json"
   ]
 }

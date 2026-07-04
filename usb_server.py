@@ -1,5 +1,5 @@
 """
-USB serial command server for TimerCube.
+USB serial command server for Toast Timer.
 
 Communicates via newline-delimited JSON on stdin/stdout (Hardware CDC).
 Protocol mirrors the WebSocket messages used by web_server.py so the

@@ -1,4 +1,4 @@
-VERSION       = "2.1.9"
-VERSION_DATE  = "2 July 2026"
+VERSION       = "1.0.0"
+VERSION_DATE  = "4 July 2026"
 GITHUB_REPO   = "KitBarritt/TimerCube"
-GITHUB_BRANCH = "main"
+GITHUB_BRANCH = "stellar-unicorn"

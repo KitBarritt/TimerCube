@@ -4,7 +4,7 @@
 <link rel="icon" type="image/x-icon" href="favicon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TimerCube</title>
+<title>Toast Timer</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -48,7 +48,7 @@ select{width:100%;padding:.5rem;background:#1f2937;border:1px solid #374151;colo
 </head>
 <body>
 <nav>
-  <strong style="color:#e5e7eb">TimerCube</strong>
+  <strong style="color:#e5e7eb">Toast Timer</strong>
   <a href="/" class="active" data-i18n="nav_timer">Timer</a>
   <a href="/speakers.html" data-i18n="nav_speakers">Speakers</a>
   <a href="/report.html" data-i18n="nav_report">Report</a>
@@ -84,7 +84,7 @@ select{width:100%;padding:.5rem;background:#1f2937;border:1px solid #374151;colo
   <div class="statusbar">
     <span style="flex:1"></span>
     <span id="st" style="color:#6b7280">Connecting…</span>
-    <span style="flex:1;text-align:right;color:#fff">TimerCube by Kit</span>
+    <span style="flex:1;text-align:right;color:#fff">Toast Timer by Kit</span>
   </div>
 </div>
 
@@ -123,10 +123,13 @@ const PRESET_KEYS = [
 ];
 
 let ws,state={colour:'off',elapsed:0,running:false,thresholds:[0,0,0,0],speaker:'',flash_on:false};
-let speakers=[],activePre=-1;
+let speakers=[],activePre=-1,_watchdog,_lastMsg=0;
 
 function fmt(s){s=Math.floor(s);return Math.floor(s/60)+':'+(s%60+'').padStart(2,'0');}
-function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function send(o){
+  if(!ws||ws.readyState!==1){connect();return;}
+  try{ws.send(JSON.stringify(o));}catch(e){connect();}
+}
 function cmd(type,val){
   if(type==='set_colour') send({type,colour:val});
   else send({type});
@@ -139,9 +142,11 @@ function setStatus(text,colour){
 }
 
 function connect(){
+  clearInterval(_watchdog);
+  if(ws){ws.onclose=null;ws.onerror=null;try{ws.close();}catch(e){}}
   ws=new WebSocket('ws://'+location.host+'/ws');
-  ws.onopen=()=>setStatus(t('st_connected'),'#1db954');
-  ws.onmessage=e=>{const m=JSON.parse(e.data);
+  ws.onopen=()=>{_lastMsg=Date.now();setStatus(t('st_connected'),'#1db954');};
+  ws.onmessage=e=>{_lastMsg=Date.now();const m=JSON.parse(e.data);
     if(m.type==='state'){state=m;render();}
     else if(m.type==='speakers'){speakers=m.speakers;fillSpk();}
     else if(m.type==='config'){
@@ -151,7 +156,13 @@ function connect(){
   };
   ws.onclose=()=>{setStatus(t('st_reconnecting'),'#ff8c1a');setTimeout(connect,2000);};
   ws.onerror=()=>ws.close();
+  // Watchdog: server sends every 500 ms — if silent for 3 s the connection is stale
+  _watchdog=setInterval(()=>{if(ws&&ws.readyState===1&&Date.now()-_lastMsg>3000)connect();},1000);
 }
+// Reconnect immediately when the user returns to the page (phone unlock etc.)
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&(Date.now()-_lastMsg>2000||!ws||ws.readyState!==1))connect();
+});
 
 function render(){
   const d=document.getElementById('disp');

@@ -1,11 +1,15 @@
 """
-TimerCube – ESP32-S3-Matrix entry point.
+Toast Timer – Pimoroni Stellar Unicorn entry point.
+MicroPython asyncio: buttons (boot mode) → USB / BLE / WiFi → HTTP+WS server.
 
-Boot mode is determined by reading the QMI8658 accelerometer at power-on:
+Hardware: Raspberry Pi Pico W + Pimoroni Stellar Unicorn (16×16 WS2812B).
+Requires Pimoroni MicroPython firmware (includes stellar + picographics modules).
 
-  left side down  → USB serial mode  (web/index.html via Web Serial)
-  right side down → Bluetooth mode   (web/ble.html   via Web Bluetooth)
-  upright / unknown → WiFi → AP hotspot
+Boot mode is chosen by which button (if any) is held down at power-on:
+
+  Button A held    → USB serial mode  (web/index.html via Web Serial)
+  Button B held    → Bluetooth mode   (web/ble.html   via Web Bluetooth)
+  no button held   → WiFi → AP hotspot
 
 USB handshake protocol
   Browser → board : "HELLO\n"
@@ -16,12 +20,24 @@ UsbServer._command_loop (reconnection after page reload).
 """
 
 import asyncio
+import gc
+import micropython
 import sys
+
+DIAG = False   # set True to enable heap/memory diagnostics in the REPL
 
 from config      import load_config
 from led_matrix  import Matrix
 from timer_state import Timer
 from web_server  import WebServer
+from stellar     import StellarUnicorn
+
+
+def _mem(label):
+    if not DIAG:
+        return
+    gc.collect()
+    print(f'[mem] {label}: free={gc.mem_free()}  alloc={gc.mem_alloc()}')
 
 
 # ── boot ───────────────────────────────────────────────────────────────────
@@ -32,52 +48,51 @@ async def main():
     matrix.set_brightness(config['timer']['brightness'])
     matrix.clear()
 
-    print('TimerCube starting…')
+    print('Toast Timer starting…')
+    _mem('after matrix init')
 
-    from imu import get_orientation
-    orientation = get_orientation()
-    print('Orientation:', orientation)
-
-    if orientation == 'left':
+    su = matrix.unicorn
+    if su.is_pressed(StellarUnicorn.SWITCH_A):
         # USB-only: wait indefinitely for browser HELLO
         if _usb_handshake(matrix):
             await _run_usb(config, matrix)
+        return
 
-    elif orientation == 'right':
+    if su.is_pressed(StellarUnicorn.SWITCH_B):
         # BLE mode immediately
         await _run_ble(config, matrix)
+        return
 
-    else:
-        # Upright / unknown: WiFi → AP
-        _set_hostname()
-        from wifi_manager import try_networks
-        result = await try_networks(config, matrix)
-        if result:
-            ip, iface = result
-            print('Network ready: mode=client  ip=%s' % ip)
-            _ddns_register(ip)
-            timer  = Timer(config)
-            server = WebServer(timer, config, matrix, ip, 'client')
-            await server.start()
-            return
+    # No button held: WiFi → AP
+    _set_hostname()
+    from wifi_manager import try_networks
+    result = await try_networks(config, matrix)
+    if result:
+        ip, iface = result
+        print('Network ready: mode=client  ip=%s' % ip)
+        _ddns_register(ip)
+        _mem('after WiFi')
+        if DIAG:
+            micropython.mem_info()   # full heap/stack breakdown
+        timer  = Timer(config)
+        server = WebServer(timer, config, matrix, ip, 'client')
+        await server.start()
+        return
 
-        # WiFi unavailable — start AP hotspot
-        await _run_ap(config, matrix)
+    # WiFi unavailable — start AP hotspot
+    await _run_ap(config, matrix)
 
 
 # ── USB handshake (synchronous, called before asyncio tasks start) ─────────
 
 def _usb_handshake(matrix):
     """
-    Show U on LEDs (rotated for left-side-down viewing), wait for "HELLO"
-    from the browser, reply "READY_OK".  Blocks indefinitely.
-    Returns True on success (always, unless an exception escapes).
+    Show U on the matrix, wait for "HELLO" from the browser, reply "READY_OK".
+    Blocks indefinitely.  Returns True on success (always, unless an
+    exception escapes).
     """
     from led_matrix import BLUE
-    # rotation=270: cube tipped left rotates the display 90° CW from viewer's
-    # perspective; counter-rotating 270° CW makes U read correctly from above.
-    # Swap to rotation=90 if U appears upside-down on hardware.
-    matrix.show_char('U', BLUE, rotation=270)
+    matrix.show_char('U', BLUE)
     while True:
         line = sys.stdin.readline().strip()
         if line == 'HELLO':
@@ -95,10 +110,7 @@ async def _run_usb(config, matrix):
 
 async def _run_ble(config, matrix):
     from led_matrix import BLUE
-    # rotation=90: cube tipped right rotates the display 90° CCW from viewer's
-    # perspective; counter-rotating 90° CW makes B read correctly from above.
-    # Swap to rotation=270 if B appears upside-down on hardware.
-    matrix.show_char('B', BLUE, rotation=90)
+    matrix.show_char('B', BLUE)
     from ble_server import BleServer
     server = BleServer(config, matrix)
     await server.run()
@@ -128,7 +140,7 @@ def _ddns_register(ip):
 def _set_hostname():
     try:
         import network
-        network.hostname('timercube')
+        network.hostname('toasttimer')
     except Exception:
         pass
 

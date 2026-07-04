@@ -1,4 +1,4 @@
-/* TimerCube translations — EN / FR / DE / ES
+/* Toast Timer translations — EN / FR / DE / ES
  * Encoding: UTF-8
  * One entry per line. Edit the quoted strings only — do not change the key names on the left.
  * Non-breaking space (invisible) is used before : and ? in French — type it with Ctrl+Shift+Space. */
@@ -54,9 +54,11 @@ window.TRANSLATIONS = {
     pre_manual:            'Manual',
     pre_none:              '—',
 
-    // Settings — brightness
-    h_brightness:          'Display Brightness',
+    // Settings — display
+    h_display:             'Display',
     lbl_brightness:        'Brightness:',
+    label_letter_mode:     'Letter mode',
+    label_letter_mode_hint:'Show G / A / R instead of solid colour fill',
 
     // Settings — WiFi
     h_wifi:                'WiFi Networks',
@@ -81,6 +83,12 @@ window.TRANSLATIONS = {
     lbl_ip:                'IP address',
     lbl_url:               'URL',
     lbl_ap_ssid:           'AP SSID',
+
+    // Settings — battery
+    h_battery:             'Battery',
+    lbl_voltage:           'Voltage',
+    lbl_charge:            'Charge',
+    battery_hint:          'Updated every 60 s. Thresholds: green ≥ 50 %, amber ≥ 20 %, red < 20 %.',
 
     // Settings — reboot / toasts
     btn_reboot:            'Reboot Device',
@@ -183,9 +191,11 @@ window.TRANSLATIONS = {
     pre_manual:            'Manuel',
     pre_none:              '—',
 
-    // Settings — brightness
-    h_brightness:          "Luminosité de l'affichage",
+    // Settings — display
+    h_display:             'Affichage',
     lbl_brightness:        'Luminosité :',
+    label_letter_mode:     'Mode lettres',
+    label_letter_mode_hint:'Afficher G / A / R au lieu d’une couleur pleine',
 
     // Settings — WiFi
     h_wifi:                'Réseaux WiFi',
@@ -210,6 +220,12 @@ window.TRANSLATIONS = {
     lbl_ip:                'Adresse IP',
     lbl_url:               'URL',
     lbl_ap_ssid:           "SSID du point d'accès",
+
+    // Settings — battery
+    h_battery:             'Batterie',
+    lbl_voltage:           'Tension',
+    lbl_charge:            'Charge',
+    battery_hint:          'Mis à jour toutes les 60 s. Seuils : vert ≥ 50 %, ambre ≥ 20 %, rouge < 20 %.',
 
     // Settings — reboot / toasts
     btn_reboot:            "Redémarrer l'appareil",
@@ -312,9 +328,11 @@ window.TRANSLATIONS = {
     pre_manual:            'Manuell',
     pre_none:              '—',
 
-    // Settings — brightness
-    h_brightness:          'Anzeigehelligkeit',
+    // Settings — display
+    h_display:             'Anzeige',
     lbl_brightness:        'Helligkeit:',
+    label_letter_mode:     'Buchstabenmodus',
+    label_letter_mode_hint:'Zeigt G / A / R statt farbiger Füllung',
 
     // Settings — WiFi
     h_wifi:                'WLAN-Netzwerke',
@@ -339,6 +357,12 @@ window.TRANSLATIONS = {
     lbl_ip:                'IP-Adresse',
     lbl_url:               'URL',
     lbl_ap_ssid:           'AP-SSID',
+
+    // Settings — battery
+    h_battery:             'Batterie',
+    lbl_voltage:           'Spannung',
+    lbl_charge:            'Ladung',
+    battery_hint:          'Aktualisiert alle 60 s. Schwellenwerte: Grün ≥ 50 %, Gelb ≥ 20 %, Rot < 20 %.',
 
     // Settings — reboot / toasts
     btn_reboot:            'Gerät neu starten',
@@ -441,9 +465,11 @@ window.TRANSLATIONS = {
     pre_manual:            'Manual',
     pre_none:              '—',
 
-    // Settings — brightness
-    h_brightness:          'Brillo de pantalla',
+    // Settings — display
+    h_display:             'Pantalla',
     lbl_brightness:        'Brillo:',
+    label_letter_mode:     'Modo letras',
+    label_letter_mode_hint:'Muestra G / A / R en lugar de color sólido',
 
     // Settings — WiFi
     h_wifi:                'Redes WiFi',
@@ -468,6 +494,12 @@ window.TRANSLATIONS = {
     lbl_ip:                'Dirección IP',
     lbl_url:               'URL',
     lbl_ap_ssid:           'SSID del AP',
+
+    // Settings — battery
+    h_battery:             'Batería',
+    lbl_voltage:           'Voltaje',
+    lbl_charge:            'Carga',
+    battery_hint:          'Actualizado cada 60 s. Umbrales: verde ≥ 50 %, ámbar ≥ 20 %, rojo < 20 %.',
 
     // Settings — reboot / toasts
     btn_reboot:            'Reiniciar dispositivo',

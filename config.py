@@ -5,13 +5,20 @@ CONFIG_FILE = '/config.json'
 _DEFAULTS = {
     'wifi': {
         'networks': [],
-        'ap_ssid': 'TimerCube',
+        'ap_ssid': 'ToastTimer',
         'ap_password': 'toastmaster',
     },
     'timer': {
-        'brightness': 0.6,
+        'brightness': 0.5,
+        'letter_mode': False,
     },
     'language': 'en',
+    'ddns': {
+        'enabled': False,
+        'device_id': '1',
+        'api_key': '',
+        'endpoint': 'https://toasttimer.net/update',
+    },
 }
 
 

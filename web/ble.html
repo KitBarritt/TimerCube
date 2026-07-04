@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TimerCube BLE</title>
+<title>Toast Timer BLE</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -166,7 +166,7 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
 
 <!-- ═══════════════════════ CONNECT SCREEN ═══════════════════════ -->
 <div id="connectScreen">
-  <h1>TimerCube</h1>
+  <h1>Toast Timer</h1>
   <div id="connectStatus">
     <span id="connectDot"></span>
     <span id="connectText">Not connected</span>
@@ -176,15 +176,15 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
   </div>
   <button id="btnConnect" onclick="connectClick()">Connect via Bluetooth</button>
   <p id="connectNote">
-    Orient the TimerCube with its right side down to activate Bluetooth mode,
-    then click Connect and select <strong>TimerCube</strong> from the list.
+    Hold Button B on the Toast Timer while powering it on to activate
+    Bluetooth mode, then click Connect and select <strong>Toast Timer</strong> from the list.
   </p>
 </div>
 
 <!-- ═══════════════════════ APP ══════════════════════════════════ -->
 <div id="app">
   <nav>
-    <strong>TimerCube</strong>
+    <strong>Toast Timer</strong>
     <button class="nav-tab active" onclick="showTab('timer')"   id="nt-timer"   >Timer</button>
     <button class="nav-tab"        onclick="showTab('speakers')" id="nt-speakers">Speakers</button>
     <button class="nav-tab"        onclick="showTab('report')"   id="nt-report"  >Report</button>
@@ -313,7 +313,7 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
       <h2>Hotspot (fallback AP)</h2>
       <div class="row">
         <label for="apSsid">SSID</label>
-        <input type="text" id="apSsid" style="flex:2" placeholder="TimerCube">
+        <input type="text" id="apSsid" style="flex:2" placeholder="ToastTimer">
       </div>
       <div class="row">
         <label for="apPass">Password</label>
@@ -452,7 +452,7 @@ async function connectClick(){
   }
   try{
     bleDevice=await navigator.bluetooth.requestDevice({
-      filters:[{name:'TimerCube'}],
+      filters:[{name:'Toast Timer'}],
       optionalServices:[_NUS_SVC]
     });
     bleDevice.addEventListener('gattserverdisconnected',onDisconnected);
@@ -526,7 +526,7 @@ function send(obj){
 // ═══════════════════════════════════════════════════════════════
 let state={colour:'off',elapsed:0,running:false,thresholds:[0,0,0,0],
            speaker:'',flash_on:false};
-let speakers=[], cfg={wifi:{networks:[],ap_ssid:'TimerCube',ap_password:'toastmaster'},
+let speakers=[], cfg={wifi:{networks:[],ap_ssid:'ToastTimer',ap_password:'toastmaster'},
                       timer:{brightness:.6},language:'en'};
 
 function handleMessage(m){
@@ -806,7 +806,7 @@ function applyConfig(){
   const b=Math.round((cfg.timer?.brightness??0.6)*100);
   document.getElementById('brightSlider').value=b;
   document.getElementById('brightVal').textContent=b;
-  document.getElementById('apSsid').value=cfg.wifi?.ap_ssid??'TimerCube';
+  document.getElementById('apSsid').value=cfg.wifi?.ap_ssid??'ToastTimer';
   document.getElementById('apPass').value=cfg.wifi?.ap_password??'toastmaster';
   document.getElementById('infoAp').textContent=cfg.wifi?.ap_ssid??'—';
   renderNetList();
@@ -893,7 +893,7 @@ function delNet(i){ cfg.wifi.networks.splice(i,1); cfg.wifi.networks.forEach((n,
 function addNet(){ cfg.wifi.networks.push({ssid:'',password:'',priority:cfg.wifi.networks.length}); editOpen=cfg.wifi.networks.length-1; renderNetList(); setTimeout(()=>{const el=document.getElementById('es'+editOpen);if(el)el.focus();},50); }
 
 function saveWifi(){
-  cfg.wifi.ap_ssid=document.getElementById('apSsid').value.trim()||'TimerCube';
+  cfg.wifi.ap_ssid=document.getElementById('apSsid').value.trim()||'ToastTimer';
   cfg.wifi.ap_password=document.getElementById('apPass').value;
   send({type:'save_config',config:{wifi:cfg.wifi,timer:cfg.timer}});
 }

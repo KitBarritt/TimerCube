@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/x-icon" href="favicon.png">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Settings – TimerCube</title>
+<title>Settings – Toast Timer</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -47,6 +48,15 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
 .edit-id-btn{background:none;border:none;cursor:pointer;color:transparent;
   font-size:.85rem;padding:.1rem .3rem;line-height:1;transition:color .2s}
 .edit-id-btn:hover{color:#6b7280}
+/* toggle switch */
+.switch{position:relative;display:inline-block;width:2.75rem;height:1.5rem;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#374151;border-radius:1.5rem;cursor:pointer;
+  transition:background .2s}
+.slider:before{content:'';position:absolute;width:1.1rem;height:1.1rem;left:.2rem;top:.2rem;
+  background:#fff;border-radius:50%;transition:transform .2s}
+input:checked+.slider{background:#1db954}
+input:checked+.slider:before{transform:translateX(1.25rem)}
 .scan-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;background:#111827;
   border:1px solid #1f2937;border-radius:.375rem;margin-bottom:.3rem}
 .scan-ssid{flex:1;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -63,7 +73,7 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
 </head>
 <body>
 <nav>
-  <strong style="color:#e5e7eb">TimerCube</strong>
+  <strong style="color:#e5e7eb">Toast Timer</strong>
   <a href="/" data-i18n="nav_timer">Timer</a>
   <a href="/speakers.html" data-i18n="nav_speakers">Speakers</a>
   <a href="/report.html" data-i18n="nav_report">Report</a>
@@ -85,12 +95,24 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
     </div>
   </div>
 
-  <!-- Brightness -->
+  <!-- Display (brightness + letter mode) -->
   <div class="card">
-    <h2 data-i18n="h_brightness">Display Brightness</h2>
-    <label><span data-i18n="lbl_brightness">Brightness:</span> <span id="brightVal">60</span>%</label>
-    <input type="range" id="brightSlider" min="0" max="100" value="60"
-      oninput="setBrightness(this.value)">
+    <h2 data-i18n="h_display">Display</h2>
+    <label><span data-i18n="lbl_brightness">Brightness:</span> <span id="brightVal">50</span>%</label>
+    <input type="range" id="brightSlider" min="0" max="100" value="50"
+      oninput="setBrightness(this.value)" style="margin-bottom:1rem">
+    <div class="row" style="margin-top:.25rem">
+      <label for="letterMode" style="margin:0;flex:1;font-size:.85rem;color:#e5e7eb">
+        <span id="lbl_letter_mode">Letter mode</span>
+        <span id="lbl_letter_mode_hint" style="display:block;font-size:.75rem;color:#6b7280;font-weight:400">
+          Show G / A / R instead of solid colour fill
+        </span>
+      </label>
+      <label class="switch" style="flex:none">
+        <input type="checkbox" id="letterMode" onchange="setLetterMode(this.checked)">
+        <span class="slider"></span>
+      </label>
+    </div>
   </div>
 
   <!-- WiFi networks -->
@@ -120,7 +142,7 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
     <h2 data-i18n="h_hotspot">Hotspot (fallback AP)</h2>
     <div class="row">
       <label for="apSsid" data-i18n="lbl_ssid">SSID</label>
-      <input type="text" id="apSsid" style="flex:2" placeholder="TimerCube">
+      <input type="text" id="apSsid" style="flex:2" placeholder="ToastTimer">
     </div>
     <div class="row">
       <label for="apPass" data-i18n="lbl_password">Password</label>
@@ -157,6 +179,27 @@ select.field{width:100%;padding:.45rem .6rem;background:#111827;border:1px solid
       <input type="text" id="deviceIdInput" style="flex:1" maxlength="32">
       <button class="btn btn-warn" onclick="saveDeviceId()">Save</button>
       <button class="btn btn-secondary" onclick="closeIdEdit()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Battery -->
+  <div class="card">
+    <h2 data-i18n="h_battery">Battery</h2>
+    <div class="info-row">
+      <span data-i18n="lbl_voltage">Voltage</span>
+      <span class="info-val" id="battV">—</span>
+    </div>
+    <div class="info-row">
+      <span data-i18n="lbl_charge">Charge</span>
+      <span id="battBar" style="flex:1;margin:0 .75rem">
+        <div style="background:#1f2937;border-radius:.25rem;height:.6rem;overflow:hidden">
+          <div id="battFill" style="height:100%;width:0%;background:#1db954;transition:width .5s,background .5s"></div>
+        </div>
+      </span>
+      <span class="info-val" id="battPct">—</span>
+    </div>
+    <div class="info-row" style="font-size:.72rem;color:#6b7280;border:none">
+      <span id="battery_hint">Updated every 60 s. Thresholds: green ≥ 50 %, amber ≥ 20 %, red &lt; 20 %.</span>
     </div>
   </div>
 
@@ -216,6 +259,9 @@ function applyI18n() {
     el.textContent = t(el.dataset.i18n);
   });
   // Re-render dynamic content
+  document.getElementById('lbl_letter_mode').textContent      = t('label_letter_mode');
+  document.getElementById('lbl_letter_mode_hint').textContent = t('label_letter_mode_hint');
+  document.getElementById('battery_hint').textContent         = t('battery_hint');
   document.getElementById('btnAdd').textContent = t('btn_add');
   document.getElementById('btnScan').textContent = t('btn_scan');
   document.getElementById('btnReboot').textContent = t('btn_reboot');
@@ -224,12 +270,15 @@ function applyI18n() {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let ws, cfg = {
-  wifi:{networks:[],ap_ssid:'TimerCube',ap_password:'toastmaster'},
-  timer:{brightness:.6},
+  wifi:{networks:[],ap_ssid:'ToastTimer',ap_password:'toastmaster'},
+  timer:{brightness:.5,letter_mode:false},
   language:'en'
-};
+}, _watchdog, _lastMsg = 0;
 
-function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o));}
+function send(o){
+  if(!ws||ws.readyState!==1){connect();return;}
+  try{ws.send(JSON.stringify(o));}catch(e){connect();}
+}
 function showToast(msg,ok=true){
   const toast=document.getElementById('toast');
   toast.textContent=msg;
@@ -251,8 +300,11 @@ function saveLang() {
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 function connect(){
+  clearInterval(_watchdog);
+  if(ws){ws.onclose=null;ws.onerror=null;try{ws.close();}catch(e){}}
   ws = new WebSocket('ws://'+location.host+'/ws');
   ws.onopen = () => {
+    _lastMsg = Date.now();
     document.getElementById('st').textContent = t('st_connected');
     send({type:'get_config'});
     fetch('/api/info').then(r=>r.json()).then(applyInfo).catch(()=>{});
@@ -261,8 +313,10 @@ function connect(){
     }).catch(()=>{});
   };
   ws.onmessage = e => {
+    _lastMsg = Date.now();
     const m = JSON.parse(e.data);
-    if (m.type === 'config') { cfg = m.config; applyConfig(); }
+    if (m.type === 'battery') { applyBattery(m.battery); }
+    else if (m.type === 'config') { cfg = m.config; applyConfig(); }
     else if (m.type === 'config_saved') {
       const ok = m.ok !== false;
       document.getElementById('wifiResult').textContent =
@@ -283,13 +337,31 @@ function connect(){
     setTimeout(connect, 2000);
   };
   ws.onerror = () => ws.close();
+  // Watchdog: server sends every 500 ms — if silent for 3 s the connection is stale
+  _watchdog = setInterval(()=>{if(ws&&ws.readyState===1&&Date.now()-_lastMsg>3000)connect();},1000);
 }
+// Reconnect immediately when the user returns to the page (phone unlock etc.)
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&(Date.now()-_lastMsg>2000||!ws||ws.readyState!==1))connect();
+});
 
 function applyInfo(info){
   document.getElementById('infoMode').textContent = info.mode||'—';
   document.getElementById('infoIp').textContent   = info.ip||'—';
   document.getElementById('infoUrl').textContent  = info.url||'—';
   document.getElementById('infoAp').textContent   = info.ap_ssid||'—';
+  if (info.battery) applyBattery(info.battery);
+}
+
+function applyBattery(b){
+  const colours={'green':'#1db954','amber':'#ff8c1a','red':'#ff3b30','unknown':'#6b7280'};
+  const col=colours[b.colour]||'#6b7280';
+  document.getElementById('battV').textContent=b.voltage!=null?b.voltage+'V':'—';
+  document.getElementById('battPct').textContent=b.percent!=null?b.percent+'%':'—';
+  document.getElementById('battPct').style.color=col;
+  const fill=document.getElementById('battFill');
+  fill.style.width=(b.percent!=null?b.percent:0)+'%';
+  fill.style.background=col;
 }
 
 function openIdEdit(){
@@ -312,10 +384,11 @@ function applyConfig(){
     document.getElementById('langSel').value = lang;
     applyI18n();
   }
-  const b = Math.round((cfg.timer?.brightness ?? 0.6) * 100);
+  const b = Math.round((cfg.timer?.brightness ?? 0.5) * 100);
   document.getElementById('brightSlider').value = b;
   document.getElementById('brightVal').textContent = b;
-  document.getElementById('apSsid').value = cfg.wifi?.ap_ssid ?? 'TimerCube';
+  document.getElementById('letterMode').checked = cfg.timer?.letter_mode ?? false;
+  document.getElementById('apSsid').value = cfg.wifi?.ap_ssid ?? 'ToastTimer';
   document.getElementById('apPass').value = cfg.wifi?.ap_password ?? 'toastmaster';
   renderNetList();
 }
@@ -325,6 +398,12 @@ function setBrightness(val){
   cfg.timer = cfg.timer || {};
   cfg.timer.brightness = +val / 100;
   send({type:'set_brightness', brightness: +val / 100});
+}
+
+function setLetterMode(enabled){
+  cfg.timer = cfg.timer || {};
+  cfg.timer.letter_mode = enabled;
+  send({type:'set_letter_mode', enabled});
 }
 
 // ── Network list ──────────────────────────────────────────────────────────────
@@ -402,7 +481,7 @@ function addNet(){
 }
 
 function saveWifi(){
-  cfg.wifi.ap_ssid    = document.getElementById('apSsid').value.trim() || 'TimerCube';
+  cfg.wifi.ap_ssid    = document.getElementById('apSsid').value.trim() || 'ToastTimer';
   cfg.wifi.ap_password = document.getElementById('apPass').value;
   send({type:'save_config', config:{wifi: cfg.wifi, timer: cfg.timer}});
 }
@@ -412,9 +491,9 @@ let scanResults = [];
 
 function rssiToBars(rssi){
   if (rssi >= -50) return '▂▄▆█';
-  if (rssi >= -60) return '▂▄▆\u2591';
-  if (rssi >= -70) return '▂▄\u2591\u2591';
-  return '▂\u2591\u2591\u2591';
+  if (rssi >= -60) return '▂▄▆░';
+  if (rssi >= -70) return '▂▄░░';
+  return '▂░░░';
 }
 
 function doScan(){
@@ -476,7 +555,7 @@ function loadVersion(){
   fetch('/api/version')
     .then(r => r.json())
     .then(v => {
-      const label = 'V' + v.version + ' · ' + v.date;
+      const label = 'V' + v.version + ' · ' + v.date;
       document.getElementById('currentVersion').textContent = label;
       document.getElementById('versionFooter').textContent  = label;
     })
@@ -499,7 +578,7 @@ function onUpdateStatus(m){
     _pendingRemote = m.remote;
     div.style.color = '#fde68a';
     div.innerHTML =
-      'Version <strong>V' + escHtml(m.remote) + '</strong> is available. ' +
+      'Version <strong>V' + escHtml(m.remote) + '</strong> is available. ' +
       '<button class="btn btn-primary btn-sm" onclick="showOtaModal()">Update…</button>';
   } else {
     div.style.color = '#6b7280';

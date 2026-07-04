@@ -1,18 +1,23 @@
 """
-Async HTTP + WebSocket server for the ESP32 TimerCube.
+Async HTTP + WebSocket server for the Stellar Unicorn Toast Timer.
 - Serves static files from /public/
 - /ws  → WebSocket endpoint (timer commands & state broadcasts)
-- /api/speakers, /api/config, /api/info → REST endpoints
+- /api/speakers, /api/config, /api/info, /api/version, /api/device-id → REST endpoints
 - Captive-portal probe paths → redirect to /
 """
 
 import asyncio
+import gc
 import hashlib
 import binascii
 import json
 import os
+import time
 
+import battery as _batt
 from timer_state import PRESETS
+
+DIAG = False   # set True to enable heap reports and matrix loop lag warnings
 
 _WS_MAGIC = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
@@ -22,7 +27,8 @@ def _state_msg(state):
     d = {'type': 'state'}
     d.update(state)
     return json.dumps(d)
-_CHUNK    = 1024          # bytes per file-send chunk
+
+_CHUNK    = 4096          # bytes per file-send chunk
 _SPEAKERS = '/data/speakers.json'
 
 
@@ -95,7 +101,7 @@ async def _send_file(writer, path):
         'HTTP/1.1 200 OK\r\n'
         f'Content-Type: {_ctype(path)}\r\n'
         f'Content-Length: {size}\r\n'
-        'Cache-Control: max-age=3600\r\n'
+        'Cache-Control: max-age=60\r\n'
         'Connection: close\r\n\r\n'
     ).encode()
     writer.write(hdr)
@@ -105,7 +111,7 @@ async def _send_file(writer, path):
             if not chunk:
                 break
             writer.write(chunk)
-            await writer.drain()
+    await writer.drain()   # single drain after all chunks — faster than per-chunk
 
 
 async def _send_redirect(writer, url):
@@ -117,7 +123,6 @@ async def _send_redirect(writer, url):
 
 
 async def _send_404(writer):
-    body = b'Not found'
     writer.write(
         b'HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 9\r\nConnection: close\r\n\r\nNot found'
     )
@@ -135,6 +140,8 @@ class WebServer:
         self.mode     = mode
         self._clients = set()          # active WebSocket StreamWriter objects
         self.speakers = self._load_speakers()
+        # Battery – take an initial reading at startup; refreshed every 60 s
+        self._batt = _batt.status(_batt.read_voltage())
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
@@ -149,8 +156,42 @@ class WebServer:
     # ── background tasks ───────────────────────────────────────────────────
 
     async def _broadcast_loop(self):
-        """Push timer state to all WebSocket clients every 0.5 s."""
+        """Push timer state to all WebSocket clients every 0.5 s.
+        Refreshes battery reading every 60 s and broadcasts it to all clients.
+        Sends a WebSocket ping every 30 s to keep mobile connections alive.
+        Also prints a heap report every 10 s (20 ticks) when DIAG is enabled."""
+        tick = 0
         while True:
+            tick += 1
+            if DIAG and tick % 20 == 0:
+                gc.collect()
+                print(f'[mem] heap free={gc.mem_free()}  alloc={gc.mem_alloc()}'
+                      f'  ws_clients={len(self._clients)}')
+            # WebSocket ping every 60 ticks (30 s) — keeps mobile connections
+            # alive when the screen locks or the device enters power-save mode.
+            if tick % 60 == 0 and self._clients:
+                dead = set()
+                for w in list(self._clients):
+                    try:
+                        w.write(b'\x89\x00')   # FIN=1, opcode=9 (ping), len=0
+                        await w.drain()
+                    except Exception:
+                        dead.add(w)
+                self._clients -= dead
+                for w in dead:   # send TCP FIN so browser onclose fires immediately
+                    try: w.close()
+                    except Exception: pass
+            # Refresh battery every 120 ticks (60 s)
+            if tick % 120 == 0:
+                v = _batt.read_voltage()
+                self._batt = _batt.status(v)
+                if self._clients:
+                    msg = json.dumps({'type': 'battery', 'battery': self._batt})
+                    for w in list(self._clients):
+                        try:
+                            await _ws_send(w, msg)
+                        except Exception:
+                            pass
             if self._clients:
                 state = self.timer.get_state()
                 msg   = _state_msg(state)
@@ -161,58 +202,73 @@ class WebServer:
                     except Exception:
                         dead.add(w)
                 self._clients -= dead
+                for w in dead:   # send TCP FIN so browser onclose fires immediately
+                    try: w.close()
+                    except Exception: pass
             await asyncio.sleep(0.5)
 
     async def _matrix_loop(self):
         """Update the LED matrix to reflect the current timer colour."""
         from led_matrix import GREEN, AMBER, RED, BLUE, WHITE
-        flash_on = True
-        ip_seq          = []   # IP scroll: list of chars + None (blank) entries
-        ip_idx          = 0    # current position in ip_seq
-        ip_tick         = 0    # 0.5 s ticks at current position (2 ticks = 1 s)
-        last_ip         = ''   # detect IP/mode changes so sequence is rebuilt
-        last_mode       = ''
-        ip_brightness   = 0.15 # ← adjust this (0.0–1.0) to set IP scroll brightness
-        no_client_ticks = 0    # ticks elapsed with no WS clients (debounce)
+        flash_on  = True
+        _last_tick = time.ticks_ms()
+        ip_seq        = []   # idle scroll: list of strings + None (blank) entries
+        ip_idx        = 0    # current position in ip_seq
+        ip_tick       = 0    # 0.5 s ticks at current position (2 ticks = 1 s)
+        last_ip       = ''   # detect IP/mode changes so sequence is rebuilt
+        last_mode     = ''
+        ip_brightness = 0.15 # dim brightness for idle scroll (0.0–1.0)
+        # Grace period: after the last client disconnects, keep showing the
+        # timer colour for this many ms before falling back to the idle scroll.
+        _GRACE_MS        = 60_000
+        _last_had_client = time.ticks_ms() - _GRACE_MS - 1  # expired at boot
 
         while True:
             try:
+                # Lag detector: warn if the loop fires >40% late (>700 ms)
+                now        = time.ticks_ms()
+                lag        = time.ticks_diff(now, _last_tick)
+                _last_tick = now
+                if DIAG and lag > 700:
+                    print(f'[warn] matrix loop lag {lag} ms')
+
+                # Keep track of the last time a client was connected so that a
+                # brief disconnect (phone screen lock, momentary network blip)
+                # doesn't immediately flip back to the idle animation.
+                if self._clients:
+                    _last_had_client = now
+                _grace_expired = time.ticks_diff(now, _last_had_client) > _GRACE_MS
+
                 state  = self.timer.get_state()
                 colour = state['colour']
 
-                if self._clients:
-                    no_client_ticks = 0
-                else:
-                    no_client_ticks += 1
+                # Idle conditions: AP always shows when colour is off/stopped;
+                # client mode waits for grace period to expire first.
+                idle_ap     = (self.mode == 'ap'     and colour == 'off' and not state['running'])
+                idle_client = (self.mode == 'client' and colour == 'off' and not state['running']
+                               and not self._clients and _grace_expired)
 
-                # Only show IP after 10 ticks (5 s) with no clients, so brief
-                # page-navigation gaps don't trigger the animation.
-                if colour == 'off' and not state['running'] and no_client_ticks >= 10 and self.mode in ('ap', 'client'):
-                    # Idle animation: mode prefix + IP address scroll, one char per second.
-                    # AP:     A  P  <IP digits with : between octets>  <2 s blank>
-                    # Client: I  P  -  <IP digits>  <2 s blank>
+                if idle_ap or idle_client:
+                    # Rebuild sequence when IP or mode changes.
+                    # AP:     AP · octet1 · octet2 · octet3 · octet4 · blank · blank
+                    # Client: IP · octet1 · octet2 · octet3 · octet4 · blank · blank
                     if self.ip != last_ip or self.mode != last_mode:
                         last_ip   = self.ip
                         last_mode = self.mode
-                        if self.mode == 'ap':
-                            ip_seq = (['A', 'P']
-                                      + list(self.ip.replace('.', ':'))
-                                      + [None, None, None, None])
-                        else:
-                            ip_seq = (['I', 'P', '-']
-                                      + list(self.ip.replace('.', ':'))
-                                      + [None, None, None, None])
-                        ip_idx  = 0
-                        ip_tick = 0
+                        octets    = self.ip.split('.')
+                        prefix    = 'AP' if self.mode == 'ap' else 'IP'
+                        ip_seq    = [prefix] + octets + [None, None]
+                        ip_idx    = 0
+                        ip_tick   = 0
                     if ip_seq:
-                        ch = ip_seq[ip_idx]
-                        if ch is None:
+                        item = ip_seq[ip_idx]
+                        if item is None:
                             self.matrix.clear()
                         else:
                             _b = self.matrix.brightness
                             self.matrix.brightness = ip_brightness
                             col = AMBER if self.mode == 'ap' else WHITE
-                            self.matrix.show_char(ch, col)
+                            self.matrix.show_string(item, col)
                             self.matrix.brightness = _b
                         ip_tick += 1
                         if ip_tick >= 2:        # advance after 1 s (2 × 0.5 s)
@@ -221,8 +277,10 @@ class WebServer:
 
                 else:
                     # Reset animation so it starts fresh next time
-                    ip_idx   = 0
-                    ip_tick  = 0
+                    ip_idx  = 0
+                    ip_tick = 0
+
+                    letter_mode = self.config['timer'].get('letter_mode', False)
 
                     if colour == 'off':
                         if state['running']:
@@ -230,15 +288,18 @@ class WebServer:
                         else:
                             self.matrix.clear()
                     elif colour == 'green':
-                        self.matrix.fill(GREEN)
+                        self.matrix.show_large_char('G', GREEN) if letter_mode else self.matrix.fill(GREEN)
                     elif colour == 'amber':
-                        self.matrix.fill(AMBER)
+                        self.matrix.show_large_char('A', AMBER) if letter_mode else self.matrix.fill(AMBER)
                     elif colour == 'red':
-                        self.matrix.fill(RED)
+                        self.matrix.show_large_char('R', RED) if letter_mode else self.matrix.fill(RED)
                     elif colour == 'flash':
                         flash_on = not flash_on
                         self.timer.flash_on = flash_on
-                        self.matrix.fill(RED) if flash_on else self.matrix.clear()
+                        if flash_on:
+                            self.matrix.show_large_char('R', RED) if letter_mode else self.matrix.fill(RED)
+                        else:
+                            self.matrix.clear()
             except Exception as e:
                 print('Matrix loop error:', e)
 
@@ -305,6 +366,7 @@ class WebServer:
             await _ws_send(writer, json.dumps({'type': 'speakers', 'speakers': self.speakers}))
             await _ws_send(writer, json.dumps({'type': 'config',   'config':   self.config}))
             await _ws_send(writer, json.dumps({'type': 'presets',  'presets':  PRESETS}))
+            await _ws_send(writer, json.dumps({'type': 'battery',  'battery':  self._batt}))
 
             while True:
                 opcode, data = await _ws_recv(reader)
@@ -348,10 +410,14 @@ class WebServer:
         elif t == 'set_speaker':
             self.timer.speaker = msg.get('speaker', '')
         elif t == 'set_brightness':
-            b = float(msg.get('brightness', 0.6))
+            b = float(msg.get('brightness', 0.5))
             self.timer.brightness = b
             self.matrix.set_brightness(b)
             self.config['timer']['brightness'] = b
+            from config import save_config
+            save_config(self.config)
+        elif t == 'set_letter_mode':
+            self.config['timer']['letter_mode'] = bool(msg.get('enabled', False))
             from config import save_config
             save_config(self.config)
         elif t == 'get_state':
@@ -470,10 +536,11 @@ class WebServer:
 
         if path == '/api/info':
             await _send_json(writer, {
-                'ip':   self.ip,
-                'mode': self.mode,
-                'ap_ssid': self.config['wifi'].get('ap_ssid', 'TimerCube'),
-                'url':  f'http://{self.ip}/',
+                'ip':      self.ip,
+                'mode':    self.mode,
+                'ap_ssid': self.config['wifi'].get('ap_ssid', 'ToastTimer'),
+                'url':     f'http://{self.ip}/',
+                'battery': self._batt,
             })
             return
 

@@ -1,5 +1,5 @@
 """
-DDNS registration for TimerCube.
+DDNS registration for Toast Timer.
 
 On WiFi connect, calls:
   https://timercubeip.kitbarritt.org/register?id=<device_id>&ip=<ip>

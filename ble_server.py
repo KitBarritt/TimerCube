@@ -1,7 +1,7 @@
 """
-Bluetooth Low Energy server for TimerCube.
+Bluetooth Low Energy server for Toast Timer.
 
-Advertises as a Nordic UART Service (NUS) peripheral named "TimerCube".
+Advertises as a Nordic UART Service (NUS) peripheral named "Toast Timer".
 The browser page (web/ble.html) connects via the Web Bluetooth API and
 exchanges the same newline-delimited JSON protocol used by UsbServer.
 
@@ -111,7 +111,7 @@ class BleServer:
     # ── advertising ────────────────────────────────────────────────────────
 
     def _advertise(self, interval_us=100_000):
-        name = b'TimerCube'
+        name = b'Toast Timer'
         adv  = bytes([2, 0x01, 0x06,
                       len(name) + 1, 0x09]) + name
         self._ble.gap_advertise(interval_us, adv_data=adv)
