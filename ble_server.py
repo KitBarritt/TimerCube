@@ -20,8 +20,10 @@ import bluetooth
 import json
 import os
 
+import battery as _batt
 from timer_state import Timer, PRESETS
 from config import save_config
+from device_info import HARDWARE, HAS_BATTERY, HAS_LETTER_MODE
 
 _SPEAKERS = '/data/speakers.json'
 
@@ -69,6 +71,7 @@ class BleServer:
         self._rx_buf         = b''
         self._cmd_queue      = []
         self._just_connected = False  # set in IRQ, consumed in _command_loop
+        self._batt           = _batt.status(_batt.read_voltage())
 
     # ── public entry point ─────────────────────────────────────────────────
 
@@ -131,9 +134,16 @@ class BleServer:
                 print('BLE send error:', e)
 
     def _send_initial_state(self):
+        self._send({
+            'type': 'device_info',
+            'hardware': HARDWARE,
+            'has_battery': HAS_BATTERY,
+            'has_letter_mode': HAS_LETTER_MODE,
+        })
         self._send({'type': 'speakers', 'speakers': self.speakers})
         self._send({'type': 'config',   'config':   self.config})
         self._send({'type': 'presets',  'presets':  PRESETS})
+        self._send({'type': 'battery',  'battery':  self._batt})
         state = self.timer.get_state()
         d = {'type': 'state'}
         d.update(state)
@@ -159,7 +169,15 @@ class BleServer:
             await asyncio.sleep_ms(20)
 
     async def _broadcast_loop(self):
+        tick = 0
         while True:
+            tick += 1
+            # Refresh battery every 120 ticks (60 s)
+            if tick % 120 == 0:
+                v = _batt.read_voltage()
+                self._batt = _batt.status(v)
+                if self._conn_handle is not None:
+                    self._send({'type': 'battery', 'battery': self._batt})
             if self._conn_handle is not None:
                 state = self.timer.get_state()
                 d = {'type': 'state'}
@@ -174,21 +192,25 @@ class BleServer:
             try:
                 state  = self.timer.get_state()
                 colour = state['colour']
+                letter_mode = self.config['timer'].get('letter_mode', False)
                 if colour == 'off':
                     if state['running']:
                         self.matrix.dot(BLUE)
                     else:
                         self.matrix.clear()
                 elif colour == 'green':
-                    self.matrix.fill(GREEN)
+                    self.matrix.show_large_char('G', GREEN) if letter_mode else self.matrix.fill(GREEN)
                 elif colour == 'amber':
-                    self.matrix.fill(AMBER)
+                    self.matrix.show_large_char('A', AMBER) if letter_mode else self.matrix.fill(AMBER)
                 elif colour == 'red':
-                    self.matrix.fill(RED)
+                    self.matrix.show_large_char('R', RED) if letter_mode else self.matrix.fill(RED)
                 elif colour == 'flash':
                     flash_on = not flash_on
                     self.timer.flash_on = flash_on
-                    self.matrix.fill(RED) if flash_on else self.matrix.clear()
+                    if flash_on:
+                        self.matrix.show_large_char('R', RED) if letter_mode else self.matrix.fill(RED)
+                    else:
+                        self.matrix.clear()
             except Exception as e:
                 print('Matrix loop error:', e)
             await asyncio.sleep(0.5)
@@ -224,6 +246,10 @@ class BleServer:
             self.timer.brightness = b
             self.matrix.set_brightness(b)
             self.config['timer']['brightness'] = b
+            save_config(self.config)
+
+        elif t == 'set_letter_mode':
+            self.config['timer']['letter_mode'] = bool(msg.get('enabled', False))
             save_config(self.config)
 
         elif t == 'get_state':

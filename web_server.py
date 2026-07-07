@@ -16,6 +16,7 @@ import time
 
 import battery as _batt
 from timer_state import PRESETS
+from device_info import HARDWARE, HAS_BATTERY, HAS_LETTER_MODE
 
 DIAG = False   # set True to enable heap reports and matrix loop lag warnings
 
@@ -361,6 +362,12 @@ class WebServer:
 
         try:
             # Send initial snapshot
+            await _ws_send(writer, json.dumps({
+                'type': 'device_info',
+                'hardware': HARDWARE,
+                'has_battery': HAS_BATTERY,
+                'has_letter_mode': HAS_LETTER_MODE,
+            }))
             state = self.timer.get_state()
             await _ws_send(writer, _state_msg(state))
             await _ws_send(writer, json.dumps({'type': 'speakers', 'speakers': self.speakers}))
