@@ -2,3 +2,4 @@ config.json
 id.py
 .claude/
 data/
+.DS_Store
