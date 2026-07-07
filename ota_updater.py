@@ -6,6 +6,10 @@ progress updates between each file download.
 
 import os
 import json
+import gc
+
+_DL_CHUNK = 1024   # bytes per streamed read — keeps peak heap usage low and
+                   # avoids needing one large contiguous allocation per file
 
 
 def _raw_url(repo, branch, path):
@@ -86,12 +90,22 @@ def download_file(repo, branch, rel_path):
         resp.close()
         raise RuntimeError("HTTP " + str(resp.status_code) + " for " + rel_path)
 
-    data = resp.content
-    resp.close()
+    # Stream to disk in small chunks rather than resp.content, which reads
+    # the whole file into one contiguous bytes object — on a fragmented
+    # heap that single allocation can fail even when the file itself is
+    # well within the device's free memory (e.g. "memory allocation failed,
+    # allocating N bytes" for files in the 10-30 KB range on a Pico W).
+    try:
+        with open(dev_path + '.new', 'wb') as f:
+            while True:
+                chunk = resp.raw.read(_DL_CHUNK)
+                if not chunk:
+                    break
+                f.write(chunk)
+    finally:
+        resp.close()
 
-    with open(dev_path + '.new', 'wb') as f:
-        f.write(data)
-
+    gc.collect()   # reclaim the chunk buffers before the next file's download
     return dev_path
 
 
