@@ -24,6 +24,7 @@ import _thread
 
 from timer_state import Timer, PRESETS
 from config import save_config
+from device_info import HARDWARE, HAS_BATTERY, HAS_LETTER_MODE
 
 _SPEAKERS = '/data/speakers.json'
 
@@ -55,6 +56,12 @@ class UsbServer:
         sys.stdout.write(json.dumps(obj) + '\n')
 
     def _send_initial_state(self):
+        self._send({
+            'type': 'device_info',
+            'hardware': HARDWARE,
+            'has_battery': HAS_BATTERY,
+            'has_letter_mode': HAS_LETTER_MODE,
+        })
         self._send({'type': 'speakers', 'speakers': self.speakers})
         self._send({'type': 'config',   'config':   self.config})
         self._send({'type': 'presets',  'presets':  PRESETS})
