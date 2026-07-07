@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TimerCube BLE</title>
+<title>ToastTimer BLE</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -160,13 +160,22 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
 .scan-ssid{flex:1;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .scan-rssi{font-size:.75rem;color:#6b7280;white-space:nowrap}
 .status-note{font-size:.75rem;color:#6b7280;padding:.4rem 0}
+/* toggle switch (letter mode) */
+.switch{position:relative;display:inline-block;width:2.75rem;height:1.5rem;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#374151;border-radius:1.5rem;cursor:pointer;
+  transition:background .2s}
+.slider:before{content:'';position:absolute;width:1.1rem;height:1.1rem;left:.2rem;top:.2rem;
+  background:#fff;border-radius:50%;transition:transform .2s}
+input:checked+.slider{background:#1db954}
+input:checked+.slider:before{transform:translateX(1.25rem)}
 </style>
 </head>
 <body>
 
 <!-- ═══════════════════════ CONNECT SCREEN ═══════════════════════ -->
 <div id="connectScreen">
-  <h1>TimerCube</h1>
+  <h1>ToastTimer</h1>
   <div id="connectStatus">
     <span id="connectDot"></span>
     <span id="connectText">Not connected</span>
@@ -176,15 +185,16 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
   </div>
   <button id="btnConnect" onclick="connectClick()">Connect via Bluetooth</button>
   <p id="connectNote">
-    Orient the TimerCube with its right side down to activate Bluetooth mode,
-    then click Connect and select <strong>TimerCube</strong> from the list.
+    Boot the device into Bluetooth mode — on TimerCube (ESP32), orient it
+    right-side-down; on Toast Timer (Stellar Unicorn), hold Button B while
+    powering on — then click Connect and select your device from the list.
   </p>
 </div>
 
 <!-- ═══════════════════════ APP ══════════════════════════════════ -->
 <div id="app">
   <nav>
-    <strong>TimerCube</strong>
+    <strong>ToastTimer</strong>
     <button class="nav-tab active" onclick="showTab('timer')"   id="nt-timer"   >Timer</button>
     <button class="nav-tab"        onclick="showTab('speakers')" id="nt-speakers">Speakers</button>
     <button class="nav-tab"        onclick="showTab('report')"   id="nt-report"  >Report</button>
@@ -276,12 +286,24 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
       </div>
     </div>
 
-    <!-- Brightness -->
+    <!-- Display (brightness + letter mode) -->
     <div class="card">
-      <h2>Display Brightness</h2>
+      <h2>Display</h2>
       <label>Brightness: <span id="brightVal">60</span>%</label>
       <input type="range" id="brightSlider" min="0" max="100" value="60"
-        oninput="setBrightness(this.value)">
+        oninput="setBrightness(this.value)" style="margin-bottom:1rem">
+      <div class="row" id="letterModeRow" style="display:none;margin-top:.25rem">
+        <label for="letterMode" style="margin:0;flex:1;font-size:.85rem;color:#e5e7eb">
+          Letter mode
+          <span style="display:block;font-size:.75rem;color:#6b7280;font-weight:400">
+            Show G / A / R instead of solid colour fill
+          </span>
+        </label>
+        <label class="switch" style="flex:none">
+          <input type="checkbox" id="letterMode" onchange="setLetterMode(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
 
     <!-- WiFi networks -->
@@ -313,7 +335,7 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
       <h2>Hotspot (fallback AP)</h2>
       <div class="row">
         <label for="apSsid">SSID</label>
-        <input type="text" id="apSsid" style="flex:2" placeholder="TimerCube">
+        <input type="text" id="apSsid" style="flex:2" placeholder="ToastTimer">
       </div>
       <div class="row">
         <label for="apPass">Password</label>
@@ -334,6 +356,27 @@ h2{font-size:1rem;font-weight:600;margin-bottom:1rem;color:#e5e7eb}
           <span class="info-val" id="infoDeviceId">—</span>
           <button class="edit-id-btn" onclick="openIdEdit()" title="Edit Device ID">✎</button>
         </span>
+      </div>
+    </div>
+
+    <!-- Battery -->
+    <div class="card" id="batteryCard" style="display:none">
+      <h2>Battery</h2>
+      <div class="info-row">
+        <span>Voltage</span>
+        <span class="info-val" id="battV">—</span>
+      </div>
+      <div class="info-row">
+        <span>Charge</span>
+        <span style="flex:1;margin:0 .75rem">
+          <div style="background:#1f2937;border-radius:.25rem;height:.6rem;overflow:hidden">
+            <div id="battFill" style="height:100%;width:0%;background:#1db954;transition:width .5s,background .5s"></div>
+          </div>
+        </span>
+        <span class="info-val" id="battPct">—</span>
+      </div>
+      <div class="info-row" style="font-size:.72rem;color:#6b7280;border:none">
+        <span>Updated every 60 s. Thresholds: green ≥ 50 %, amber ≥ 20 %, red &lt; 20 %.</span>
       </div>
     </div>
 
@@ -452,7 +495,7 @@ async function connectClick(){
   }
   try{
     bleDevice=await navigator.bluetooth.requestDevice({
-      filters:[{name:'TimerCube'}],
+      filters:[{name:'TimerCube'},{name:'Toast Timer'}],
       optionalServices:[_NUS_SVC]
     });
     bleDevice.addEventListener('gattserverdisconnected',onDisconnected);
@@ -526,11 +569,20 @@ function send(obj){
 // ═══════════════════════════════════════════════════════════════
 let state={colour:'off',elapsed:0,running:false,thresholds:[0,0,0,0],
            speaker:'',flash_on:false};
-let speakers=[], cfg={wifi:{networks:[],ap_ssid:'TimerCube',ap_password:'toastmaster'},
-                      timer:{brightness:.6},language:'en'};
+let speakers=[], cfg={wifi:{networks:[],ap_ssid:'ToastTimer',ap_password:'toastmaster'},
+                      timer:{brightness:.6,letter_mode:false},language:'en'};
+let deviceInfo={hardware:'',has_battery:false,has_letter_mode:false};
 
 function handleMessage(m){
-  if(m.type==='state'){
+  if(m.type==='device_info'){
+    deviceInfo=m;
+    document.getElementById('letterModeRow').style.display=m.has_letter_mode?'flex':'none';
+    document.getElementById('batteryCard').style.display=m.has_battery?'block':'none';
+  }
+  else if(m.type==='battery'){
+    applyBattery(m.battery);
+  }
+  else if(m.type==='state'){
     state=m;
     renderTimer();
     if(m.elapsed>0&&!m.running&&m.speaker){
@@ -806,10 +858,28 @@ function applyConfig(){
   const b=Math.round((cfg.timer?.brightness??0.6)*100);
   document.getElementById('brightSlider').value=b;
   document.getElementById('brightVal').textContent=b;
-  document.getElementById('apSsid').value=cfg.wifi?.ap_ssid??'TimerCube';
+  document.getElementById('letterMode').checked=cfg.timer?.letter_mode??false;
+  document.getElementById('apSsid').value=cfg.wifi?.ap_ssid??'ToastTimer';
   document.getElementById('apPass').value=cfg.wifi?.ap_password??'toastmaster';
   document.getElementById('infoAp').textContent=cfg.wifi?.ap_ssid??'—';
   renderNetList();
+}
+
+function setLetterMode(enabled){
+  cfg.timer=cfg.timer||{};
+  cfg.timer.letter_mode=enabled;
+  send({type:'set_letter_mode',enabled});
+}
+
+function applyBattery(b){
+  const colours={green:'#1db954',amber:'#ff8c1a',red:'#ff3b30',unknown:'#6b7280'};
+  const col=colours[b.colour]||'#6b7280';
+  document.getElementById('battV').textContent=b.voltage!=null?b.voltage+'V':'—';
+  document.getElementById('battPct').textContent=b.percent!=null?b.percent+'%':'—';
+  document.getElementById('battPct').style.color=col;
+  const fill=document.getElementById('battFill');
+  fill.style.width=(b.percent!=null?b.percent:0)+'%';
+  fill.style.background=col;
 }
 
 function onLangChange(l){ lang=l; cfg.language=l; applyI18n(); }
@@ -893,7 +963,7 @@ function delNet(i){ cfg.wifi.networks.splice(i,1); cfg.wifi.networks.forEach((n,
 function addNet(){ cfg.wifi.networks.push({ssid:'',password:'',priority:cfg.wifi.networks.length}); editOpen=cfg.wifi.networks.length-1; renderNetList(); setTimeout(()=>{const el=document.getElementById('es'+editOpen);if(el)el.focus();},50); }
 
 function saveWifi(){
-  cfg.wifi.ap_ssid=document.getElementById('apSsid').value.trim()||'TimerCube';
+  cfg.wifi.ap_ssid=document.getElementById('apSsid').value.trim()||'ToastTimer';
   cfg.wifi.ap_password=document.getElementById('apPass').value;
   send({type:'save_config',config:{wifi:cfg.wifi,timer:cfg.timer}});
 }
