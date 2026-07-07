@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Toast Timer BLE</title>
+<title>ToastTimer BLE</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -175,7 +175,7 @@ input:checked+.slider:before{transform:translateX(1.25rem)}
 
 <!-- ═══════════════════════ CONNECT SCREEN ═══════════════════════ -->
 <div id="connectScreen">
-  <h1>Toast Timer</h1>
+  <h1>ToastTimer</h1>
   <div id="connectStatus">
     <span id="connectDot"></span>
     <span id="connectText">Not connected</span>
@@ -185,15 +185,16 @@ input:checked+.slider:before{transform:translateX(1.25rem)}
   </div>
   <button id="btnConnect" onclick="connectClick()">Connect via Bluetooth</button>
   <p id="connectNote">
-    Hold Button B on the Toast Timer while powering it on to activate
-    Bluetooth mode, then click Connect and select <strong>Toast Timer</strong> from the list.
+    Boot the device into Bluetooth mode — on TimerCube (ESP32), orient it
+    right-side-down; on Toast Timer (Stellar Unicorn), hold Button B while
+    powering on — then click Connect and select your device from the list.
   </p>
 </div>
 
 <!-- ═══════════════════════ APP ══════════════════════════════════ -->
 <div id="app">
   <nav>
-    <strong>Toast Timer</strong>
+    <strong>ToastTimer</strong>
     <button class="nav-tab active" onclick="showTab('timer')"   id="nt-timer"   >Timer</button>
     <button class="nav-tab"        onclick="showTab('speakers')" id="nt-speakers">Speakers</button>
     <button class="nav-tab"        onclick="showTab('report')"   id="nt-report"  >Report</button>
@@ -494,7 +495,7 @@ async function connectClick(){
   }
   try{
     bleDevice=await navigator.bluetooth.requestDevice({
-      filters:[{name:'Toast Timer'}],
+      filters:[{name:'TimerCube'},{name:'Toast Timer'}],
       optionalServices:[_NUS_SVC]
     });
     bleDevice.addEventListener('gattserverdisconnected',onDisconnected);

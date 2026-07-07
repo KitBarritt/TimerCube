@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Toast Timer</title>
+<title>ToastTimer</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f1115;color:#e5e7eb;font-family:system-ui,sans-serif;min-height:100vh}
@@ -175,7 +175,7 @@ input:checked+.slider:before{transform:translateX(1.25rem)}
 
 <!-- ═══════════════════════ CONNECT SCREEN ═══════════════════════ -->
 <div id="connectScreen">
-  <h1>Toast Timer</h1>
+  <h1>ToastTimer</h1>
   <div id="connectStatus">
     <span id="connectDot"></span>
     <span id="connectText">Not connected</span>
@@ -185,8 +185,9 @@ input:checked+.slider:before{transform:translateX(1.25rem)}
   </div>
   <button id="btnConnect" onclick="connectClick()">Connect via USB</button>
   <p id="connectNote">
-    Plug in the Toast Timer via USB, hold Button A while powering it on
-    (USB mode), then click Connect.
+    Plug in the device via USB, then boot it into USB mode — on TimerCube
+    (ESP32), orient it left-side-down; on Toast Timer (Stellar Unicorn),
+    hold Button A while powering on — then click Connect.
     Previously used ports reconnect automatically on page load.
   </p>
 </div>
@@ -194,7 +195,7 @@ input:checked+.slider:before{transform:translateX(1.25rem)}
 <!-- ═══════════════════════ APP ══════════════════════════════════ -->
 <div id="app">
   <nav>
-    <strong>Toast Timer</strong>
+    <strong>ToastTimer</strong>
     <button class="nav-tab active" onclick="showTab('timer')"   id="nt-timer"   >Timer</button>
     <button class="nav-tab"        onclick="showTab('speakers')" id="nt-speakers">Speakers</button>
     <button class="nav-tab"        onclick="showTab('report')"   id="nt-report"  >Report</button>
